@@ -121,13 +121,26 @@ jobs:
           cmake .. -G "Visual Studio 17 2022" -A x64
           cmake --build . --config Release --parallel
 
+      - name: Package Desktop (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd xunnet-desktop/build/bin
+          mv XunnetDesktopApp xunnet-desktop-linux-amd64
+          chmod +x xunnet-desktop-linux-amd64
+
+      - name: Package Desktop (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd xunnet-desktop/build/bin/Release
+          ren XunnetDesktopApp.exe xunnet-desktop-windows-amd64.exe
+
       - name: Upload Desktop artifacts
         uses: actions/upload-artifact@v4
         with:
           name: xunnet-desktop-${{ matrix.arch }}
           path: |
-            xunnet-desktop/build/bin/XunnetDesktopApp
-            xunnet-desktop/build/bin/Release/XunnetDesktopApp.exe
+            xunnet-desktop/build/bin/xunnet-desktop-linux-amd64
+            xunnet-desktop/build/bin/Release/xunnet-desktop-windows-amd64.exe
 
   build-panel:
     name: Build Panel
