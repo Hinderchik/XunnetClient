@@ -62,12 +62,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: xunnet-panel/web/package-lock.json
+          node-version: '22'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run linter
         run: npm run lint
@@ -118,14 +116,12 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: xunnet-panel/web/package-lock.json
+          node-version: '22'
 
       - name: Build frontend
         working-directory: xunnet-panel/web
         run: |
-          npm ci
+          npm install
           npm run build
 
       - name: Build backend binary
