@@ -1,0 +1,1 @@
+xunnet://chacha20-ietf-poly1305@us1.xun.net:443/?protocol=vless&uuid=123e4567-e89b-12d3-a456-426614174000&flow=xtls-rprx-vision&type=tcp&host=us1.xun.net&tls=true&sni=us1.xun.net&fp=chrome&tag=premium&panel_id=panel_us_01#US_VIP_01

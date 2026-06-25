@@ -1,0 +1,91 @@
+{
+  "version": "2.0",
+  "meta": {
+    "name": "Xunnet Demo Configuration",
+    "description": "Example configuration with federation support",
+    "created": "2026-06-20T12:00:00Z",
+    "updated": "2026-06-20T12:00:00Z",
+    "author": "Xunnet User",
+    "tags": ["demo", "federation"]
+  },
+  "settings": {
+    "mode": "tun",
+    "tun": {
+      "enabled": true,
+      "stack": "gvisor",
+      "address": "172.19.0.1/24"
+    },
+    "dns": {
+      "servers": ["1.1.1.1", "8.8.8.8"],
+      "mode": "fakeip"
+    },
+    "routing": {
+      "mode": "auto"
+    }
+  },
+  "federation": {
+    "enabled": true,
+    "panels": [
+      {
+        "id": "panel_us_01",
+        "name": "US Panel",
+        "host": "https://panel-us.xunnet.dev",
+        "api_key": "fed_xxxxxxxxxxxxx",
+        "sync_interval": 300,
+        "enabled": true,
+        "tags": ["us", "premium"]
+      },
+      {
+        "id": "panel_eu_01",
+        "name": "EU Panel",
+        "host": "https://panel-eu.xunnet.dev",
+        "api_key": "fed_yyyyyyyyyyyyy",
+        "sync_interval": 300,
+        "enabled": true,
+        "tags": ["eu", "fast"]
+      }
+    ],
+    "strategy": "latency_based"
+  },
+  "subscriptions": [
+    {
+      "id": "sub_1",
+      "name": "Premium Subscription",
+      "url": "https://example.com/subscription.json",
+      "format": "xunnet",
+      "update_interval": 3600,
+      "enabled": true,
+      "tags": ["premium"]
+    }
+  ],
+  "servers": [
+    {
+      "id": "server_1",
+      "name": "US_VIP_01",
+      "protocol": "vless",
+      "address": "us-vip.xun.net",
+      "port": 443,
+      "encryption": "chacha20-ietf-poly1305",
+      "params": {
+        "uuid": "123e4567-e89b-12d3-a456-426614174000",
+        "flow": "xtls-rprx-vision",
+        "type": "tcp",
+        "tls": "true",
+        "sni": "us-vip.xun.net",
+        "fp": "chrome"
+      },
+      "tags": ["premium", "us"],
+      "priority": 10,
+      "enabled": true,
+      "source": "panel_us_01"
+    }
+  ],
+  "groups": [
+    {
+      "id": "group_1",
+      "name": "America",
+      "server_ids": ["server_1"],
+      "strategy": "latency"
+    }
+  ]
+}

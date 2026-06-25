@@ -1,0 +1,40 @@
+# Gradle
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+
+# Android
+app/build/
+app/release/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Native
+core-libs/singbox/build/
+*.so
+*.exe
+
+# Go
+vendor/
+go.sum
+
+# Node
+node_modules/
+web/build/
+
+# Docker
+data/
+postgres-data/
+certs/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

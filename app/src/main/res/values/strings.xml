@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">Xunnet</string>
+    <string name="vpn_service_name">Xunnet VPN Service</string>
+    <string name="vpn_notification_channel">VPN Connection</string>
+    <string name="vpn_notification_text">Xunnet VPN is active</string>
+
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_proxies">Proxies</string>
+    <string name="nav_subscriptions">Subscriptions</string>
+    <string name="nav_federation">Federation</string>
+    <string name="nav_stats">Statistics</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="dashboard_connected">Connected</string>
+    <string name="dashboard_disconnected">Disconnected</string>
+    <string name="dashboard_connect">Connect</string>
+    <string name="dashboard_disconnect">Disconnect</string>
+    <string name="dashboard_download">Download</string>
+    <string name="dashboard_upload">Upload</string>
+
+    <string name="proxies_search">Search proxies</string>
+    <string name="proxies_empty">No proxies configured</string>
+    <string name="proxies_source">Source</string>
+
+    <string name="federation_title">Federation</string>
+    <string name="federation_add_panel">Add panel</string>
+    <string name="federation_sync">Sync</string>
+    <string name="federation_empty">No federated panels</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_dns">DNS</string>
+    <string name="settings_tun">TUN mode</string>
+</resources>

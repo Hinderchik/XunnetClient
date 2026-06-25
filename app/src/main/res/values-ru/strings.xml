@@ -1,0 +1,35 @@
+<resources>
+    <string name="app_name">Xunnet</string>
+    <string name="vpn_service_name">Xunnet VPN сервис</string>
+    <string name="vpn_notification_channel">VPN подключение</string>
+    <string name="vpn_notification_text">Xunnet VPN активен</string>
+
+    <string name="nav_dashboard">Главная</string>
+    <string name="nav_proxies">Узлы</string>
+    <string name="nav_subscriptions">Подписки</string>
+    <string name="nav_federation">Федерация</string>
+    <string name="nav_stats">Статистика</string>
+    <string name="nav_settings">Настройки</string>
+
+    <string name="dashboard_connected">Подключено</string>
+    <string name="dashboard_disconnected">Отключено</string>
+    <string name="dashboard_connect">Подключиться</string>
+    <string name="dashboard_disconnect">Отключиться</string>
+    <string name="dashboard_download">Скачивание</string>
+    <string name="dashboard_upload">Отдача</string>
+
+    <string name="proxies_search">Поиск узлов</string>
+    <string name="proxies_empty">Нет настроенных узлов</string>
+    <string name="proxies_source">Источник</string>
+
+    <string name="federation_title">Федерация</string>
+    <string name="federation_add_panel">Добавить панель</string>
+    <string name="federation_sync">Синхронизировать</string>
+    <string name="federation_empty">Нет федеративных панелей</string>
+
+    <string name="settings_title">Настройки</string>
+    <string name="settings_theme">Тема</string>
+    <string name="settings_language">Язык</string>
+    <string name="settings_dns">DNS</string>
+    <string name="settings_tun">Режим TUN</string>
+</resources>
