@@ -35,7 +35,7 @@ jobs:
           go-version: '1.21'
 
       - name: Cache Gradle
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.gradle/caches
@@ -125,7 +125,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xunnet-desktop-${{ matrix.arch }}
-          path: xunnet-desktop/build/**/*XunnetDesktop*
+          path: |
+            xunnet-desktop/build/bin/XunnetDesktopApp
+            xunnet-desktop/build/bin/Release/XunnetDesktopApp.exe
 
   build-panel:
     name: Build Panel
