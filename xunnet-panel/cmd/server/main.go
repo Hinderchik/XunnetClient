@@ -1,7 +1,10 @@
 package main
 
 import (
+	"embed"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
 
 	"github.com/gin-gonic/gin"
@@ -11,6 +14,9 @@ import (
 	"github.com/Hinderchik/XunnetClient/xunnet-panel/internal/config"
 	"github.com/Hinderchik/XunnetClient/xunnet-panel/internal/db"
 )
+
+//go:embed all:web/dist
+var webDist embed.FS
 
 func main() {
 	cfg := config.Load()
@@ -42,6 +48,17 @@ func main() {
 			routes.RegisterFederationRoutes(v1)
 			routes.RegisterStatsRoutes(v1)
 		}
+	}
+
+	// Serve embedded React frontend
+	staticFS, err := fs.Sub(webDist, "web/dist")
+	if err == nil {
+		r.StaticFS("/", http.FS(staticFS))
+		r.NoRoute(func(c *gin.Context) {
+			c.FileFromFS("index.html", http.FS(staticFS))
+		})
+	} else {
+		log.Printf("warning: web/dist not embedded: %v", err)
 	}
 
 	port := os.Getenv("PORT")

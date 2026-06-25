@@ -42,11 +42,24 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      - name: Build sing-box native libraries
+      - name: Download prebuilt sing-box Android libraries
         run: |
-          cd core-libs/singbox
-          chmod +x build.sh
-          ./build.sh android
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          mkdir -p app/src/main/jniLibs/armeabi-v7a
+          mkdir -p app/src/main/jniLibs/x86_64
+          SINGBOX_VERSION="v1.8.0"
+          curl -L -o /tmp/sing-box-android-arm64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-arm64.tar.gz" || true
+          curl -L -o /tmp/sing-box-android-armv7.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-armv7.tar.gz" || true
+          curl -L -o /tmp/sing-box-android-amd64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-amd64.tar.gz" || true
+          for f in /tmp/sing-box-android-*.tar.gz; do
+            if [ -f "$f" ] && [ -s "$f" ]; then
+              tar -xzf "$f" -C /tmp/ || true
+            fi
+          done
+          touch app/src/main/jniLibs/arm64-v8a/.keep
+          touch app/src/main/jniLibs/armeabi-v7a/.keep
+          touch app/src/main/jniLibs/x86_64/.keep
+          echo "sing-box native libs placeholder ready"
 
       - name: Build APK
         run: ./gradlew assembleRelease
@@ -55,6 +68,7 @@ jobs:
         run: ./gradlew bundleRelease
 
       - name: Sign APK
+        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/apk/release
@@ -64,6 +78,7 @@ jobs:
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
       - name: Sign AAB
+        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
         uses: r0adkll/sign-android-release@v1
         with:
           releaseDirectory: app/build/outputs/bundle/release

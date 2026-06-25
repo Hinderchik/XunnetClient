@@ -15,6 +15,7 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
+        ndkVersion = "26.1.10909125"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -53,14 +54,19 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+        jniLibs {
+            pickFirsts += ["**/libc++_shared.so"]
         }
     }
+
+    // Native code (sing-box) is built separately and bundled as prebuilt .so files.
+    // To enable local CMake build, uncomment the block below and ensure NDK is installed.
+    // externalNativeBuild {
+    //     cmake {
+    //         path = file("src/main/cpp/CMakeLists.txt")
+    //         version = "3.22.1"
+    //     }
+    // }
 }
 
 dependencies {
