@@ -40,6 +40,7 @@ jobs:
       - name: Build sing-box native libraries
         run: |
           cd core-libs/singbox
+          chmod +x build.sh
           ./build.sh android
 
       - name: Build APK
