@@ -1,0 +1,256 @@
+name: Release Xunnet All Platforms
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/xunnet-panel
+
+jobs:
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Cache Gradle
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      - name: Build sing-box native libraries
+        run: |
+          cd core-libs/singbox
+          chmod +x build.sh
+          ./build.sh android
+
+      - name: Build APK
+        run: ./gradlew assembleRelease
+
+      - name: Build AAB
+        run: ./gradlew bundleRelease
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Sign AAB
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xunnet-android
+          path: |
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
+
+  build-desktop:
+    name: Build Desktop
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: linux-amd64
+            qt_arch: gcc_64
+          - os: windows-latest
+            arch: windows-amd64
+            qt_arch: win64_msvc2019_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: ${{ runner.os == 'Linux' && 'linux' || 'windows' }}
+          target: 'desktop'
+          arch: ${{ matrix.qt_arch }}
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd xunnet-desktop
+          mkdir -p build && cd build
+          cmake ..
+          cmake --build . --parallel
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd xunnet-desktop
+          mkdir build
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake --build . --config Release --parallel
+
+      - name: Upload Desktop artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xunnet-desktop-${{ matrix.arch }}
+          path: xunnet-desktop/build/**/*XunnetDesktop*
+
+  build-panel:
+    name: Build Panel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache-dependency-path: xunnet-panel/go.sum
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build frontend
+        working-directory: xunnet-panel/web
+        run: |
+          npm install
+          npm run build
+
+      - name: Build backend binaries
+        working-directory: xunnet-panel
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-linux-amd64 ./cmd/server
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-linux-arm64 ./cmd/server
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-windows-amd64.exe ./cmd/server
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-darwin-amd64 ./cmd/server
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-darwin-arm64 ./cmd/server
+
+      - name: Upload Panel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xunnet-panel-binaries
+          path: xunnet-panel/xunnet-panel-*
+
+  build-docker:
+    name: Build Panel Docker
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./xunnet-panel
+          file: ./xunnet-panel/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    name: Create Release
+    needs: [build-android, build-desktop, build-panel, build-docker]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/xunnet-android/*
+            ./artifacts/xunnet-desktop-*/*
+            ./artifacts/xunnet-panel-binaries/*
+          generate_release_notes: true
+          body: |
+            ## Xunnet ${{ github.ref_name }}
+
+            ### Android
+            Download APK or AAB from the assets below.
+
+            ### Desktop
+            Download the binary for your platform (Windows / Linux).
+
+            ### Panel
+            Download the binary for your platform or use Docker:
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ```
+
+            ### Deployment
+            See [README.md](README.md) and [docs/BUILD.md](docs/BUILD.md) for instructions.
