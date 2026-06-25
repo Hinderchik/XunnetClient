@@ -1,0 +1,57 @@
+name: Build Xunnet Desktop
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Qt (Linux)
+        if: runner.os == 'Linux'
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'linux'
+          target: 'desktop'
+          arch: 'gcc_64'
+
+      - name: Install Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: '6.5.3'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2019_64'
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd xunnet-desktop
+          mkdir build && cd build
+          cmake ..
+          cmake --build . --parallel
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cd xunnet-desktop
+          mkdir build
+          cd build
+          cmake .. -G "Visual Studio 17 2022" -A x64
+          cmake --build . --config Release --parallel
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: xunnet-desktop-${{ matrix.os }}
+          path: xunnet-desktop/build/**/*XunnetDesktop*

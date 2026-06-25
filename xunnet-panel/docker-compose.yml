@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  xunnet-panel:
+    build: .
+    container_name: xunnet-panel
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_DRIVER=sqlite
+      - DB_DSN=/app/data/xunnet.db
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - ./data:/app/data
