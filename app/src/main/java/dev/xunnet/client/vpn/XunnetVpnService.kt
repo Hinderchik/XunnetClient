@@ -30,8 +30,8 @@ class XunnetVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        @Suppress("DEPRECATION")
-        val profile: Profile? = intent?.getParcelableExtra(EXTRA_PROFILE)
+        @Suppress("DEPRECATION", "UNCHECKED_CAST")
+        val profile: Profile? = intent?.getParcelableExtra<android.os.Parcelable>(EXTRA_PROFILE) as Profile?
         if (profile != null) {
             startVpn(profile)
         } else {

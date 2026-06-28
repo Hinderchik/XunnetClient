@@ -7,6 +7,7 @@ import dev.xunnet.client.core.data.remote.FederationApi
 import dev.xunnet.client.core.domain.model.FederatedPanel
 import dev.xunnet.client.core.domain.model.Profile
 import dev.xunnet.client.core.domain.repository.FederationRepository
+import dev.xunnet.client.core.domain.repository.PanelStatus
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.UUID
@@ -45,7 +46,7 @@ class FederationRepositoryImpl(
         val servers = response.body() ?: emptyList()
         profileDao.deleteBySource(id)
         profileDao.insertAll(servers.map { it.copy(source = id).toEntity() })
-        dao.update(panel.copy(lastSync = System.currentTimeMillis(), serversCount = servers.size).toEntity())
+        dao.update(panel.toDomain().copy(lastSync = System.currentTimeMillis(), serversCount = servers.size).toEntity())
         servers
     }
 

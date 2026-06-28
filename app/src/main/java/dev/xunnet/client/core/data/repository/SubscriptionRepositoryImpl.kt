@@ -47,7 +47,7 @@ class SubscriptionRepositoryImpl(
         val profiles = parseBody(body, sub.format)
         profileDao.deleteBySource(id)
         profileDao.insertAll(profiles.map { it.copy(source = id).toEntity() })
-        dao.update(sub.copy(lastUpdate = System.currentTimeMillis(), serverCount = profiles.size).toEntity())
+        dao.update(sub.toDomain().copy(lastUpdate = System.currentTimeMillis(), serverCount = profiles.size).toEntity())
         profiles
     }
 

@@ -39,6 +39,10 @@ class ProfileRepositoryImpl(
         parser.generate(profile)
     }
 
+    override suspend fun importFromFile(file: java.io.File): Result<List<Profile>> = runCatching {
+        parser.parseFile(file).getOrThrow()
+    }
+
     private fun ProfileEntity.toDomain(): Profile = Profile(
         id = id,
         name = name,
