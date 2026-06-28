@@ -334,93 +334,113 @@ jobs:
             Write-Host "Skipping bundle: $exe not found"
             exit 0
           }
-          # Find windeployqt — search common Qt install locations
-          $windeployqt = $null
+          # Find Qt install root
           $qtRoot = $null
-          $candidates = @(
-            "D:\a\XunnetClient\Qt\6.5.3\mingw_64\bin\windeployqt.exe",
-            "C:\Qt\6.5.3\mingw_64\bin\windeployqt.exe",
-            "C:\Qt\6.5.3\msvc2019_64\bin\windeployqt.exe",
-            "C:\Qt\Tools\mingw_1310_64\bin\windeployqt.exe",
-            "D:\Qt\6.5.3\mingw_64\bin\windeployqt.exe"
+          $qtCandidates = @(
+            "D:\a\XunnetClient\Qt\6.5.3\mingw_64",
+            "C:\Qt\6.5.3\mingw_64",
+            "D:\Qt\6.5.3\mingw_64"
           )
-          $found = Get-Command windeployqt.exe -ErrorAction SilentlyContinue
-          if ($found) { $candidates = @($found.Source) + $candidates }
-          foreach ($p in $candidates) {
-            if ($p -and (Test-Path $p)) {
-              $windeployqt = $p
-              $qtRoot = Split-Path -Parent (Split-Path -Parent $p)
-              break
-            }
+          foreach ($p in $qtCandidates) {
+            if (Test-Path (Join-Path $p "bin\Qt6Core.dll")) { $qtRoot = $p; break }
           }
-          if (-not $windeployqt) {
-            $recursive = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt" -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($recursive) {
-              $windeployqt = $recursive.FullName
-              $qtRoot = Split-Path -Parent (Split-Path -Parent $windeployqt)
-            }
+          if (-not $qtRoot) {
+            Write-Host "Qt install not found, searching..."
+            $qtRoot = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt" -Directory -Filter "mingw_64" -Recurse -ErrorAction SilentlyContinue | Where-Object { Test-Path (Join-Path $_.FullName "bin\Qt6Core.dll") } | Select-Object -First 1 -ExpandProperty FullName
           }
-          if (-not $windeployqt) {
-            Write-Host "windeployqt not found anywhere. Skipping Qt bundling."
+          if (-not $qtRoot) {
+            Write-Host "ERROR: Qt installation not found. Skipping bundle."
             exit 0
           }
-          Write-Host "Found windeployqt: $windeployqt"
           Write-Host "Qt root: $qtRoot"
-          # Verify platform plugin exists
-          $platformsDir = Join-Path $qtRoot "plugins\platforms"
-          if (-not (Test-Path $platformsDir)) {
-            Write-Host "WARNING: platforms dir missing at $platformsDir"
-            Write-Host "Qt install may be incomplete. Listing plugins dir:"
-            $pluginsDir = Join-Path $qtRoot "plugins"
-            if (Test-Path $pluginsDir) {
-              Get-ChildItem $pluginsDir | ForEach-Object { Write-Host "  $($_.Name)" }
+
+          $qtBin = Join-Path $qtRoot "bin"
+          $qtPlugins = Join-Path $qtRoot "plugins"
+
+          # 1) Copy required Qt6 DLLs (Core, Gui, Network, Qml, Widgets + their dependencies)
+          Write-Host "Copying Qt6 DLLs from $qtBin"
+          $requiredDlls = @(
+            "Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Qml.dll", "Qt6Widgets.dll",
+            "Qt6QmlModels.dll", "Qt6QmlMeta.dll", "Qt6QmlWorkerScript.dll"
+          )
+          foreach ($dll in $requiredDlls) {
+            $src = Join-Path $qtBin $dll
+            if (Test-Path $src) {
+              Copy-Item $src -Destination $binDir -Force
+            } else {
+              Write-Host "  WARNING: $dll not found in Qt bin"
+            }
+          }
+
+          # 2) Copy platform plugin (qwindows.dll)
+          Write-Host "Copying platform plugin"
+          $platformsSrc = Join-Path $qtPlugins "platforms"
+          $platformsDst = Join-Path $binDir "platforms"
+          New-Item -ItemType Directory -Path $platformsDst -Force | Out-Null
+          if (Test-Path $platformsSrc) {
+            foreach ($dll in (Get-ChildItem $platformsSrc -Filter "*.dll")) {
+              Copy-Item $dll.FullName -Destination $platformsDst -Force
+              Write-Host "  Copied platforms/$($dll.Name)"
             }
           } else {
-            Write-Host "Platforms available:"
-            Get-ChildItem $platformsDir -Filter "*.dll" | ForEach-Object { Write-Host "  $($_.Name)" }
+            Write-Host "  WARNING: $platformsSrc does not exist"
           }
-          Write-Host "Running windeployqt..."
-          & $windeployqt --release --no-translations --no-system-d3d-compiler --no-opengl-sw $exe
-          $windeployqtExit = $LASTEXITCODE
-          Write-Host "windeployqt exit code: $windeployqtExit"
-          if ($windeployqtExit -ne 0) {
-            Write-Host "windeployqt failed, manually copying platform plugin"
-            if (Test-Path $platformsDir) {
-              New-Item -ItemType Directory -Path (Join-Path $binDir "platforms") -Force | Out-Null
-              Get-ChildItem -Path $platformsDir -Filter "qwindows*.dll" | ForEach-Object {
-                Copy-Item $_.FullName -Destination (Join-Path $binDir "platforms") -Force
-                Write-Host "Copied $($_.Name) to platforms/"
-              }
+
+          # 3) Copy styles plugin (default style fallback)
+          $stylesSrc = Join-Path $qtPlugins "styles"
+          $stylesDst = Join-Path $binDir "styles"
+          if (Test-Path $stylesSrc) {
+            New-Item -ItemType Directory -Path $stylesDst -Force | Out-Null
+            foreach ($dll in (Get-ChildItem $stylesSrc -Filter "*.dll")) {
+              Copy-Item $dll.FullName -Destination $stylesDst -Force
             }
+            Write-Host "  Copied styles/"
           }
-          # Copy MinGW runtime DLLs
-          Write-Host "Copying MinGW runtime DLLs..."
-          $mingwBins = @(
+
+          # 4) Copy MinGW runtime DLLs
+          Write-Host "Copying MinGW runtime DLLs"
+          $mingwCandidates = @(
             "C:\Qt\Tools\mingw_1310_64\bin",
             "C:\Qt\Tools\mingw_1120_64\bin",
-            "D:\Qt\Tools\mingw_1310_64\bin"
+            "D:\a\XunnetClient\Qt\Tools\mingw_1310_64\bin",
+            "D:\a\XunnetClient\Qt\Tools\mingw_1120_64\bin"
           )
-          $mingwBin = $mingwBins | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if ($mingwBin) {
+          $mingwBin = $mingwCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $mingwBin) {
+            Write-Host "  Searching recursively..."
+            $mingwBin = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt" -Directory -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.Name -match "^mingw_\d+_64$" } |
+              ForEach-Object { Join-Path $_.FullName "bin" } |
+              Where-Object { Test-Path $_ } |
+              Select-Object -First 1
+          }
+          if ($mingwBin -and (Test-Path $mingwBin)) {
+            Write-Host "  MinGW bin: $mingwBin"
             Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
               Copy-Item $_.FullName -Destination $binDir -Force
             }
-            Write-Host "MinGW runtime copied from $mingwBin"
+            Write-Host "  MinGW runtime copied"
           } else {
-            Write-Host "MinGW bin not found in known locations, searching..."
-            $recursiveMinGW = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt" -Directory -Filter "mingw*" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($recursiveMinGW) {
-              $mingwBin = Join-Path $recursiveMinGW.FullName "bin"
-              if (Test-Path $mingwBin) {
-                Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
-                  Copy-Item $_.FullName -Destination $binDir -Force
-                }
-                Write-Host "MinGW runtime copied from $mingwBin"
-              }
+            Write-Host "  WARNING: MinGW runtime not found"
+          }
+
+          # 5) Copy QML imports if present
+          $qmlSrc = Join-Path $qtRoot "qml"
+          $qmlDst = Join-Path $binDir "qml"
+          if (Test-Path $qmlSrc) {
+            New-Item -ItemType Directory -Path $qmlDst -Force | Out-Null
+            Write-Host "Copying QML imports from $qmlSrc"
+            # Copy only top-level QML modules (not all subdirs)
+            Get-ChildItem -Path $qmlSrc -Directory | ForEach-Object {
+              $qmldir = Join-Path $qmlDst $_.Name
+              New-Item -ItemType Directory -Path $qmldir -Force | Out-Null
+              Copy-Item -Path (Join-Path $_.FullName "*") -Destination $qmldir -Recurse -Force -ErrorAction SilentlyContinue
             }
           }
-          Write-Host "Bundle complete. Files in bin:"
-          Get-ChildItem $binDir | Select-Object Name, Length
+
+          Write-Host ""
+          Write-Host "Bundle complete. Files in $binDir:"
+          Get-ChildItem $binDir -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, Length | Format-Table -AutoSize
 
       - name: Package Windows bundle (zip)
         if: runner.os == 'Windows'
