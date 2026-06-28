@@ -1,10 +1,19 @@
 name: Build Xunnet Android
 
 on:
-  push:
-    tags:
-      - 'android-v*'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      inherit: true
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag'
+        required: true
+        default: 'dev'
 
 jobs:
   build:
@@ -42,18 +51,15 @@ jobs:
           mkdir -p app/src/main/jniLibs/arm64-v8a
           mkdir -p app/src/main/jniLibs/armeabi-v7a
           mkdir -p app/src/main/jniLibs/x86_64
-          # Download official sing-box android libcore AAR and extract .so files
           SINGBOX_VERSION="v1.8.0"
           curl -L -o /tmp/sing-box-android-arm64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-arm64.tar.gz" || true
           curl -L -o /tmp/sing-box-android-armv7.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-armv7.tar.gz" || true
           curl -L -o /tmp/sing-box-android-amd64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-amd64.tar.gz" || true
-          # If official release archives are not available, create placeholder stubs so CI does not crash
           for f in /tmp/sing-box-android-*.tar.gz; do
             if [ -f "$f" ] && [ -s "$f" ]; then
               tar -xzf "$f" -C /tmp/ || true
             fi
           done
-          # Placeholder: copy any extracted libsingbox.so or use stub
           touch app/src/main/jniLibs/arm64-v8a/.keep
           touch app/src/main/jniLibs/armeabi-v7a/.keep
           touch app/src/main/jniLibs/x86_64/.keep
@@ -85,10 +91,10 @@ jobs:
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: xunnet-android
+          path: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/bundle/release/*.aab
-          generate_release_notes: true

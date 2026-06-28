@@ -1,251 +1,121 @@
 name: Release Xunnet All Platforms
 
+# This is the 4th workflow — it orchestrates all platform builds and creates the GitHub release.
+# Triggered automatically by any tag matching v* (e.g. v1.0.0, v1.2.3, v2.0.0).
+#
+# Prerelease logic:
+#   - If the 3rd digit (patch) changes vs. the previous tag → marked as PRERELEASE
+#   - If the 1st (major) or 2nd (minor) digit changes   → marked as full RELEASE
+#   - If no previous tag exists                          → full RELEASE
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: true
+        default: 'v0.0.0'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/xunnet-panel
 
 jobs:
+  # ------------------------------------------------------------------
+  # Build all 3 platforms in parallel by calling the individual workflows.
+  # ------------------------------------------------------------------
   build-android:
     name: Build Android
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup JDK
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          api-level: 34
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.21'
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-
-      - name: Download prebuilt sing-box Android libraries
-        run: |
-          mkdir -p app/src/main/jniLibs/arm64-v8a
-          mkdir -p app/src/main/jniLibs/armeabi-v7a
-          mkdir -p app/src/main/jniLibs/x86_64
-          SINGBOX_VERSION="v1.8.0"
-          curl -L -o /tmp/sing-box-android-arm64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-arm64.tar.gz" || true
-          curl -L -o /tmp/sing-box-android-armv7.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-armv7.tar.gz" || true
-          curl -L -o /tmp/sing-box-android-amd64.tar.gz "https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VERSION}/sing-box-${SINGBOX_VERSION}-android-amd64.tar.gz" || true
-          for f in /tmp/sing-box-android-*.tar.gz; do
-            if [ -f "$f" ] && [ -s "$f" ]; then
-              tar -xzf "$f" -C /tmp/ || true
-            fi
-          done
-          touch app/src/main/jniLibs/arm64-v8a/.keep
-          touch app/src/main/jniLibs/armeabi-v7a/.keep
-          touch app/src/main/jniLibs/x86_64/.keep
-          echo "sing-box native libs placeholder ready"
-
-      - name: Build APK
-        run: ./gradlew assembleRelease
-
-      - name: Build AAB
-        run: ./gradlew bundleRelease
-
-      - name: Sign APK
-        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Sign AAB
-        if: ${{ env.HAS_SIGNING_KEY == 'true' }}
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/bundle/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-
-      - name: Upload Android artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xunnet-android
-          path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+    uses: ./.github/workflows/android-build.yml
+    with:
+      version: ${{ github.ref_name }}
 
   build-desktop:
     name: Build Desktop
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            arch: linux-amd64
-            qt_arch: gcc_64
-          - os: windows-latest
-            arch: windows-amd64
-            qt_arch: win64_msvc2019_64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v3
-        with:
-          version: '6.5.3'
-          host: ${{ runner.os == 'Linux' && 'linux' || 'windows' }}
-          target: 'desktop'
-          arch: ${{ matrix.qt_arch }}
-
-      - name: Build (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cd xunnet-desktop
-          mkdir -p build && cd build
-          cmake ..
-          cmake --build . --parallel
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd xunnet-desktop
-          mkdir build
-          cd build
-          cmake .. -G "Visual Studio 17 2022" -A x64
-          cmake --build . --config Release --parallel
-
-      - name: Package Desktop (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          cd xunnet-desktop/build/bin
-          mv XunnetDesktopApp xunnet-desktop-linux-amd64
-          chmod +x xunnet-desktop-linux-amd64
-
-      - name: Package Desktop (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          cd xunnet-desktop/build/bin/Release
-          ren XunnetDesktopApp.exe xunnet-desktop-windows-amd64.exe
-
-      - name: Upload Desktop artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xunnet-desktop-${{ matrix.arch }}
-          path: |
-            xunnet-desktop/build/bin/xunnet-desktop-linux-amd64
-            xunnet-desktop/build/bin/Release/xunnet-desktop-windows-amd64.exe
+    uses: ./.github/workflows/desktop-build.yml
+    with:
+      version: ${{ github.ref_name }}
 
   build-panel:
     name: Build Panel
+    uses: ./.github/workflows/panel-build.yml
+    with:
+      version: ${{ github.ref_name }}
+      push_docker: true
+
+  # ------------------------------------------------------------------
+  # Determine release type: prerelease vs full release.
+  # Rule:
+  #   - Same major.minor as previous tag (only patch changed) → prerelease = true
+  #   - Different major.minor (major or minor changed)        → prerelease = false
+  # ------------------------------------------------------------------
+  detect-release-type:
+    name: Detect Prerelease vs Release
+    needs: [build-android, build-desktop, build-panel]
     runs-on: ubuntu-latest
+    outputs:
+      prerelease: ${{ steps.detect.outputs.prerelease }}
+      release_type: ${{ steps.detect.outputs.release_type }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-          cache-dependency-path: xunnet-panel/go.sum
+          fetch-depth: 0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Build frontend
-        working-directory: xunnet-panel/web
+      - name: Detect release type
+        id: detect
         run: |
-          npm install
-          npm run build
+          set -euo pipefail
 
-      - name: Build backend binaries
-        working-directory: xunnet-panel
-        run: |
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-linux-amd64 ./cmd/server
-          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-linux-arm64 ./cmd/server
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-windows-amd64.exe ./cmd/server
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-darwin-amd64 ./cmd/server
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-darwin-arm64 ./cmd/server
+          CURRENT="${{ github.ref_name }}"
+          # Allow workflow_dispatch to provide a custom version
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            CURRENT="${{ inputs.version }}"
+          fi
+          CURRENT="${CURRENT#v}"
 
-      - name: Upload Panel artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: xunnet-panel-binaries
-          path: xunnet-panel/xunnet-panel-*
+          echo "Current version: v${CURRENT}"
 
-  build-docker:
-    name: Build Panel Docker
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+          # Get previous semver tag (vX.Y.Z) excluding the current one
+          PREVIOUS=$(git tag --sort=-version:refname \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+            | grep -v "^v${CURRENT}$" \
+            | head -1 || true)
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+          if [ -z "$PREVIOUS" ]; then
+            echo "No previous semver tag found — first release, treating as full release"
+            PRERELEASE="false"
+            RELEASE_TYPE="release"
+          else
+            PREVIOUS="${PREVIOUS#v}"
+            echo "Previous version: v${PREVIOUS}"
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+            CURRENT_MM=$(echo "$CURRENT"  | cut -d. -f1,2)
+            PREVIOUS_MM=$(echo "$PREVIOUS" | cut -d. -f1,2)
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            if [ "$CURRENT_MM" = "$PREVIOUS_MM" ]; then
+              echo "major.minor unchanged (${CURRENT_MM}); only patch changed → PRERELEASE"
+              PRERELEASE="true"
+              RELEASE_TYPE="prerelease"
+            else
+              echo "major.minor changed (${PREVIOUS_MM} → ${CURRENT_MM}) → full RELEASE"
+              PRERELEASE="false"
+              RELEASE_TYPE="release"
+            fi
+          fi
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=sha
+          echo "prerelease=${PRERELEASE}"   >> "$GITHUB_OUTPUT"
+          echo "release_type=${RELEASE_TYPE}" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./xunnet-panel
-          file: ./xunnet-panel/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+  # ------------------------------------------------------------------
+  # Create the GitHub release and attach all artifacts.
+  # ------------------------------------------------------------------
   release:
     name: Create Release
-    needs: [build-android, build-desktop, build-panel, build-docker]
+    needs: detect-release-type
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -254,27 +124,67 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
+      - name: Download Android artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          name: xunnet-android
+          path: ./artifacts/android
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Download Desktop artifacts (Linux)
+        uses: actions/download-artifact@v4
         with:
-          files: |
-            ./artifacts/xunnet-android/*
-            ./artifacts/xunnet-desktop-*/*
-            ./artifacts/xunnet-panel-binaries/*
+          name: xunnet-desktop-linux-amd64
+          path: ./artifacts/desktop/linux
+        continue-on-error: true
+
+      - name: Download Desktop artifacts (Windows)
+        uses: actions/download-artifact@v4
+        with:
+          name: xunnet-desktop-windows-amd64
+          path: ./artifacts/desktop/windows
+        continue-on-error: true
+
+      - name: Download Panel artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: xunnet-panel-*
+          path: ./artifacts/panel
+        continue-on-error: true
+
+      - name: Flatten artifacts
+        run: |
+          mkdir -p ./artifacts/all
+          find ./artifacts -type f \( -name "*.apk" -o -name "*.aab" \
+                                 -o -name "*.exe" \
+                                 -o -name "xunnet-panel-*" \) \
+            -exec cp {} ./artifacts/all/ \; 2>/dev/null || true
+          echo "--- Collected artifacts ---"
+          ls -la ./artifacts/all/ || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Xunnet ${{ github.ref_name }}
+          prerelease: ${{ needs.detect-release-type.outputs.prerelease == 'true' }}
           generate_release_notes: true
+          files: |
+            ./artifacts/all/*
+          fail_on_unmatched_files: false
           body: |
             ## Xunnet ${{ github.ref_name }}
 
+            **Release type:** ${{ needs.detect-release-type.outputs.release_type }}
+            **Prerelease:** ${{ needs.detect-release-type.outputs.prerelease }}
+
+            ${{ needs.detect-release-type.outputs.prerelease == 'true' && '> :warning: This is a **prerelease** (only the patch version changed from the previous tag).' || '> :rocket: This is a **full release** (major or minor version changed).' }}
+
             ### Android
-            Download APK or AAB from the assets below.
+            Download `*.apk` or `*.aab` from the assets below.
 
             ### Desktop
-            Download the binary for your platform (Windows / Linux).
+            Download the binary for your platform:
+            - Linux: `xunnet-desktop-linux-amd64`
+            - Windows: `xunnet-desktop-windows-amd64.exe`
 
             ### Panel
             Download the binary for your platform or use Docker:

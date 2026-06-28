@@ -1,16 +1,32 @@
 name: Build Xunnet Desktop
 
 on:
-  push:
-    tags:
-      - 'desktop-v*'
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+    secrets:
+      inherit: true
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag'
+        required: true
+        default: 'dev'
 
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            arch: linux-amd64
+            qt_arch: gcc_64
+          - os: windows-latest
+            arch: windows-amd64
+            qt_arch: win64_msvc2019_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +53,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           cd xunnet-desktop
-          mkdir build && cd build
+          mkdir -p build && cd build
           cmake ..
           cmake --build . --parallel
 
@@ -50,23 +66,23 @@ jobs:
           cmake .. -G "Visual Studio 17 2022" -A x64
           cmake --build . --config Release --parallel
 
-      - name: Package (Linux)
+      - name: Package Desktop (Linux)
         if: runner.os == 'Linux'
         run: |
           cd xunnet-desktop/build/bin
           mv XunnetDesktopApp xunnet-desktop-linux-amd64
           chmod +x xunnet-desktop-linux-amd64
 
-      - name: Package (Windows)
+      - name: Package Desktop (Windows)
         if: runner.os == 'Windows'
         run: |
           cd xunnet-desktop/build/bin/Release
           ren XunnetDesktopApp.exe xunnet-desktop-windows-amd64.exe
 
-      - name: Upload artifacts
+      - name: Upload Desktop artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: xunnet-desktop-${{ matrix.os }}
+          name: xunnet-desktop-${{ matrix.arch }}
           path: |
             xunnet-desktop/build/bin/xunnet-desktop-linux-amd64
             xunnet-desktop/build/bin/Release/xunnet-desktop-windows-amd64.exe

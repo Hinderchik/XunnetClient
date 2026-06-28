@@ -1,9 +1,18 @@
 name: Build Xunnet Panel
 
 on:
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      push_docker:
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      inherit: true
   push:
-    tags:
-      - 'panel-v*'
     branches:
       - main
       - develop
@@ -12,6 +21,11 @@ on:
       - main
       - develop
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v1.0.0)'
+        required: true
+        default: 'dev'
 
 env:
   REGISTRY: ghcr.io
@@ -33,6 +47,13 @@ jobs:
         with:
           go-version: '1.21'
           cache-dependency-path: xunnet-panel/go.sum
+
+      - name: Ensure web/dist exists for embed
+        run: |
+          mkdir -p xunnet-panel/web/dist
+          if [ ! -f xunnet-panel/web/dist/index.html ]; then
+            echo '<!DOCTYPE html><html><body><div id="root"></div></body></html>' > xunnet-panel/web/dist/index.html
+          fi
 
       - name: Download dependencies
         run: go mod download
@@ -80,13 +101,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: xunnet-panel/web/build
+          path: xunnet-panel/web/dist
 
   build-binary:
     name: Build Binary Release
     needs: [test-backend, test-frontend]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         target:
           - goos: linux
@@ -131,7 +153,7 @@ jobs:
           GOARCH: ${{ matrix.target.goarch }}
           CGO_ENABLED: 0
         run: |
-          go build -ldflags="-s -w -X main.version=${{ github.ref_name }}" -o xunnet-panel-${{ matrix.target.suffix }} ./cmd/server
+          go build -ldflags="-s -w -X main.version=${{ inputs.version || github.ref_name }}" -o xunnet-panel-${{ matrix.target.suffix }} ./cmd/server
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
@@ -142,6 +164,7 @@ jobs:
   build-docker:
     name: Build Docker Image
     needs: [test-backend, test-frontend]
+    if: ${{ inputs.push_docker == true || github.event_name == 'push' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -188,39 +211,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-  release:
-    name: Create GitHub Release
-    needs: [build-binary, build-docker]
-    if: startsWith(github.ref, 'refs/tags/panel-v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: ./artifacts
-
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            ./artifacts/xunnet-panel-*/*
-          generate_release_notes: true
-          body: |
-            ## Xunnet Panel ${{ github.ref_name }}
-
-            ### Docker
-            ```bash
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
-            ```
-
-            ### Binaries
-            Download the binary for your platform below.
-
-            ### Deployment
-            See [xunnet-panel/README.md](xunnet-panel/README.md) for deployment instructions.

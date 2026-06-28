@@ -15,10 +15,14 @@ import (
 	"github.com/Hinderchik/XunnetClient/xunnet-panel/internal/db"
 )
 
-//go:embed all:web/dist
+//go:embed all:../../web/dist
 var webDist embed.FS
 
+// version is set at build time via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
 func main() {
+	log.Printf("Xunnet Panel %s starting...", version)
 	cfg := config.Load()
 	if err := db.Init(cfg.DatabaseDriver, cfg.DatabaseDSN); err != nil {
 		log.Fatalf("failed to init database: %v", err)
@@ -51,7 +55,9 @@ func main() {
 	}
 
 	// Serve embedded React frontend
-	staticFS, err := fs.Sub(webDist, "web/dist")
+	// The embed directive above embeds the contents of web/dist, so the root
+	// of webDist is already the dist directory.
+	staticFS, err := fs.Sub(webDist, ".")
 	if err == nil {
 		r.StaticFS("/", http.FS(staticFS))
 		r.NoRoute(func(c *gin.Context) {
