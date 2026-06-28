@@ -163,8 +163,6 @@ jobs:
       PRERELEASE: ${{ needs.prepare-release.outputs.prerelease }}
       RELEASE_TYPE: ${{ needs.prepare-release.outputs.release_type }}
       PRERELEASE_MESSAGE: ${{ needs.prepare-release.outputs.prerelease_message }}
-      REGISTRY: ${{ env.REGISTRY }}
-      IMAGE_NAME: ${{ env.IMAGE_NAME }}
     steps:
       - name: Update release body
         uses: softprops/action-gh-release@v2
