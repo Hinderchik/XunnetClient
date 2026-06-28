@@ -119,8 +119,6 @@ jobs:
       contents: write
       packages: write
     env:
-      REGISTRY: ${{ env.REGISTRY }}
-      IMAGE_NAME: ${{ env.IMAGE_NAME }}
       PRERELEASE: ${{ needs.detect-release-type.outputs.prerelease }}
       RELEASE_TYPE: ${{ needs.detect-release-type.outputs.release_type }}
       PRERELEASE_MESSAGE: ${{ needs.detect-release-type.outputs.prerelease_message }}

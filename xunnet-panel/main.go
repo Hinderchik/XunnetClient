@@ -15,7 +15,7 @@ import (
 	"github.com/Hinderchik/XunnetClient/xunnet-panel/internal/db"
 )
 
-//go:embed all:../../web/dist
+//go:embed all:web/dist
 var webDist embed.FS
 
 // version is set at build time via -ldflags "-X main.version=<tag>".
@@ -55,8 +55,6 @@ func main() {
 	}
 
 	// Serve embedded React frontend
-	// The embed directive above embeds the contents of web/dist, so the root
-	// of webDist is already the dist directory.
 	staticFS, err := fs.Sub(webDist, ".")
 	if err == nil {
 		r.StaticFS("/", http.FS(staticFS))

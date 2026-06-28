@@ -107,7 +107,7 @@ cpack -G AppImage      # Linux AppImage
 
 ```bash
 cd xunnet-panel
-go build -o xunnet-panel ./cmd/server
+go build -o xunnet-panel .
 ```
 
 ### Build frontend

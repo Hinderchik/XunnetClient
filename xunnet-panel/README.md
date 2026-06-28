@@ -14,7 +14,7 @@ Web-based server management panel for Xunnet ecosystem. Built with Go (Gin) and 
 
 ```bash
 cd xunnet-panel
-go run ./cmd/server
+go run .
 ```
 
 ## Docker

@@ -13,7 +13,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web-builder /app/web/dist ./web/dist
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o xunnet-panel ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags='-s -w' -o xunnet-panel .
 
 # Runtime
 FROM alpine:latest

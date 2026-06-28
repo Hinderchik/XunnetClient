@@ -152,7 +152,7 @@ jobs:
       - name: Build backend binary
         working-directory: xunnet-panel
         run: |
-          go build -ldflags="-s -w -X main.version=${VERSION}" -o xunnet-panel-${{ matrix.target.suffix }} ./cmd/server
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o xunnet-panel-${{ matrix.target.suffix }} .
 
       - name: Upload binary artifact
         uses: actions/upload-artifact@v4
