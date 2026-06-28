@@ -244,6 +244,17 @@ jobs:
           target: "desktop"
           arch: "gcc_64"
 
+      - name: Cache Qt (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\Qt
+            D:\Qt
+          key: qt-win64-mingw-6.5.3-${{ runner.os }}
+          restore-keys: |
+            qt-win64-mingw-6.5.3-
+
       - name: Install Qt + MinGW (Windows)
         if: runner.os == 'Windows'
         uses: jurplel/install-qt-action@v3
@@ -308,18 +319,48 @@ jobs:
             Write-Host "Skipping bundle: $exe not found"
             exit 0
           }
-          Write-Host "Running windeployqt..."
-          & "C:\Qt\6.5.3\mingw_64\bin\windeployqt.exe" `
+          # Find windeployqt — search common Qt install locations
+          $windeployqt = $null
+          $candidates = @(
+            (Get-Command windeployqt.exe -ErrorAction SilentlyContinue).Source,
+            "C:\Qt\6.5.3\mingw_64\bin\windeployqt.exe",
+            "C:\Qt\6.5.3\msvc2019_64\bin\windeployqt.exe",
+            "C:\Qt\Tools\mingw_1310_64\bin\windeployqt.exe",
+            "D:\Qt\6.5.3\mingw_64\bin\windeployqt.exe"
+          )
+          foreach ($p in $candidates) {
+            if ($p -and (Test-Path $p)) { $windeployqt = $p; break }
+          }
+          if (-not $windeployqt) {
+            Write-Host "windeployqt not found, searching recursively..."
+            $found = Get-ChildItem -Path "C:\Qt", "D:\Qt" -Filter "windeployqt.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $windeployqt = $found.FullName }
+          }
+          if (-not $windeployqt) {
+            Write-Host "windeployqt not found anywhere. Skipping Qt bundling."
+            exit 0
+          }
+          Write-Host "Found windeployqt: $windeployqt"
+          & $windeployqt `
             --release `
-            --qmldir "xunnet-desktop\src\qml" `
             --no-translations `
             --no-system-d3d-compiler `
             --no-opengl-sw `
             $exe
           Write-Host "Copying MinGW runtime DLLs..."
-          $mingwBin = "C:\Qt\Tools\mingw_1310_64\bin"
-          Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
-            Copy-Item $_.FullName -Destination $binDir -Force
+          $mingwBins = @(
+            "C:\Qt\Tools\mingw_1310_64\bin",
+            "C:\Qt\Tools\mingw_1120_64\bin",
+            "D:\Qt\Tools\mingw_1310_64\bin"
+          )
+          $mingwBin = $mingwBins | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if ($mingwBin) {
+            Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
+              Copy-Item $_.FullName -Destination $binDir -Force
+            }
+            Write-Host "MinGW runtime copied from $mingwBin"
+          } else {
+            Write-Host "MinGW bin not found, skipping runtime DLL copy"
           }
           Write-Host "Bundle complete:"
           Get-ChildItem $binDir | Select-Object Name, Length
