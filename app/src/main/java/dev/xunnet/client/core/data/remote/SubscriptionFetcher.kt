@@ -4,6 +4,7 @@ import android.util.Base64
 import dev.xunnet.client.core.domain.model.Profile
 import dev.xunnet.client.core.domain.parser.LinkParser
 import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Subscriptions can be in different formats:
@@ -100,7 +101,7 @@ class SubscriptionFetcher(private val parser: LinkParser) {
         }
 
         // Transport
-        node.optString("network").takeIf { it.isNotEmpty }?.let { params.put("network", it) }
+        node.optString("network").takeIf { it.isNotEmpty() }?.let { params.put("network", it) }
         node.optJSONObject("ws-opts")?.let { ws ->
             ws.optString("path").takeIf { it.isNotEmpty() }?.let { params.put("path", it) }
             ws.optJSONObject("headers")?.optString("Host").takeIf { it.isNotEmpty() }?.let { params.put("host", it) }

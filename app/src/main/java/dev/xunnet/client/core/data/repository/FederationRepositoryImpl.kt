@@ -117,7 +117,7 @@ class FederationRepositoryImpl(
         }
     }
 
-    private fun markPanelSync(id: String, count: Int) {
+    private suspend fun markPanelSync(id: String, count: Int) {
         val entity = dao.getById(id) ?: return
         dao.update(entity.copy(
             lastSync = System.currentTimeMillis(),
@@ -126,7 +126,7 @@ class FederationRepositoryImpl(
         ))
     }
 
-    private fun markPanelStatus(id: String, status: String) {
+    private suspend fun markPanelStatus(id: String, status: String) {
         val entity = dao.getById(id) ?: return
         dao.update(entity.copy(status = status))
     }

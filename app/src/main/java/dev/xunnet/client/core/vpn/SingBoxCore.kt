@@ -211,9 +211,8 @@ class SingBoxCore(
             var lastDown = 0L
             while (isActive && _stats.value.connected) {
                 val (up, down) = readCounters()
-                val dt = 1.0
-                val upSpeed = ((up - lastUp) / dt).coerceAtLeast(0)
-                val downSpeed = ((down - lastDown) / dt).coerceAtLeast(0)
+                val upSpeed = (up - lastUp).coerceAtLeast(0L)
+                val downSpeed = (down - lastDown).coerceAtLeast(0L)
                 lastUp = up
                 lastDown = down
                 _stats.value = _stats.value.copy(

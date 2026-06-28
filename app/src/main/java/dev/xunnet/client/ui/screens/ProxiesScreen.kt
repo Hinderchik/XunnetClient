@@ -85,7 +85,10 @@ fun ProxiesScreen(
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(uiState.proxies, key = { it.id }) { profile ->
+                items(
+                    items = uiState.proxies,
+                    key = { p -> p.id }
+                ) { profile ->
                     ProfileRow(
                         profile = profile,
                         isActive = profile.id == uiState.activeProfileId,
