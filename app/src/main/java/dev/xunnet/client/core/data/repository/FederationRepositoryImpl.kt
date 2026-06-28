@@ -53,8 +53,12 @@ class FederationRepositoryImpl(
         getAllPanels().filter { it.enabled }.forEach { syncPanel(it.id) }
     }
 
-    override suspend fun getPanelStatus(id: String): String {
-        return dao.getById(id)?.status ?: "unknown"
+    override suspend fun getPanelStatus(id: String): PanelStatus {
+        val entity = dao.getById(id)
+        return PanelStatus(
+            online = entity?.status == "online",
+            serversCount = entity?.serversCount ?: 0
+        )
     }
 
     private fun FederatedPanelEntity.toDomain(): FederatedPanel = FederatedPanel(

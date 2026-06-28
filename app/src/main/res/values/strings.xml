@@ -16,6 +16,7 @@
     <string name="dashboard_disconnected">Disconnected</string>
     <string name="dashboard_connect">Connect</string>
     <string name="dashboard_disconnect">Disconnect</string>
+    <string name="disconnect">Disconnect</string>
     <string name="dashboard_download">Download</string>
     <string name="dashboard_upload">Upload</string>
 

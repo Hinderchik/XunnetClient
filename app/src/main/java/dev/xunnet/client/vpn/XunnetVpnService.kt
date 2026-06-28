@@ -30,7 +30,8 @@ class XunnetVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val profile = intent?.getParcelableExtra<Profile>(EXTRA_PROFILE)
+        @Suppress("DEPRECATION")
+        val profile: Profile? = intent?.getParcelableExtra(EXTRA_PROFILE)
         if (profile != null) {
             startVpn(profile)
         } else {

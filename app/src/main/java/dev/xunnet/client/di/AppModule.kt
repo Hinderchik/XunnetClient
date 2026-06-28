@@ -17,6 +17,7 @@ import dev.xunnet.client.core.data.repository.ProfileRepositoryImpl
 import dev.xunnet.client.core.data.repository.SubscriptionRepositoryImpl
 import dev.xunnet.client.core.data.repository.FederationRepositoryImpl
 import dev.xunnet.client.core.domain.parser.LinkParser
+import dev.xunnet.client.core.domain.parser.XunnetLinkParser
 import dev.xunnet.client.core.domain.repository.FederationRepository
 import dev.xunnet.client.core.domain.repository.ProfileRepository
 import dev.xunnet.client.core.domain.repository.SubscriptionRepository
