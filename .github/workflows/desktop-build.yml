@@ -79,10 +79,11 @@ jobs:
           cd xunnet-desktop/build/bin/Release
           ren XunnetDesktopApp.exe xunnet-desktop-windows-amd64.exe
 
-      - name: Upload Desktop artifacts
-        uses: actions/upload-artifact@v4
+      - name: Upload Desktop binary to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: xunnet-desktop-${{ matrix.arch }}
-          path: |
+          tag_name: ${{ env.VERSION }}
+          fail_on_unmatched_files: false
+          files: |
             xunnet-desktop/build/bin/xunnet-desktop-linux-amd64
             xunnet-desktop/build/bin/Release/xunnet-desktop-windows-amd64.exe

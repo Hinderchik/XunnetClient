@@ -1,5 +1,9 @@
 name: Build Xunnet Panel
 
+# Note: no push/pull_request triggers - panel is built only via workflow_call
+# (from release-all.yml) or manual workflow_dispatch. This avoids accidental
+# duplicate CI runs and keeps the workflow lean.
+
 "on":
   workflow_call:
     inputs:
@@ -10,14 +14,6 @@ name: Build Xunnet Panel
         required: false
         type: boolean
         default: false
-  push:
-    branches:
-      - main
-      - develop
-  pull_request:
-    branches:
-      - main
-      - develop
   workflow_dispatch:
     inputs:
       version:
@@ -62,12 +58,6 @@ jobs:
       - name: Run tests
         run: go test -race -coverprofile=coverage.out ./...
 
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-coverage
-          path: xunnet-panel/coverage.out
-
   test-frontend:
     name: Test React Frontend
     runs-on: ubuntu-latest
@@ -90,16 +80,10 @@ jobs:
         run: npm run lint
 
       - name: Run tests
-        run: npm run test -- --coverage
+        run: npm run test
 
       - name: Build frontend
         run: npm run build
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: xunnet-panel/web/dist
 
   build-binary:
     name: Build Binary Release
@@ -154,15 +138,17 @@ jobs:
         run: |
           go build -ldflags="-s -w -X main.version=${VERSION}" -o xunnet-panel-${{ matrix.target.suffix }} .
 
-      - name: Upload binary artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload binary to release
+        uses: softprops/action-gh-release@v2
         with:
-          name: xunnet-panel-${{ matrix.target.suffix }}
-          path: xunnet-panel/xunnet-panel-${{ matrix.target.suffix }}
+          tag_name: ${{ env.VERSION }}
+          fail_on_unmatched_files: false
+          files: xunnet-panel/xunnet-panel-${{ matrix.target.suffix }}
 
   build-docker:
     name: Build Docker Image
     needs: [test-backend, test-frontend]
+    if: inputs.push_docker
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -178,7 +164,6 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -191,15 +176,13 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
+            type=ref,event=tag
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
 
       - name: Build and push Docker image
-        if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v5
         with:
           context: ./xunnet-panel
