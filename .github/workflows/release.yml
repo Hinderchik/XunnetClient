@@ -298,6 +298,43 @@ jobs:
             Move-Item XunnetDesktopApp.exe xunnet-desktop-windows-amd64.exe -Force
           }
 
+      - name: Bundle Qt + MinGW runtime (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = "xunnet-desktop\build\bin\xunnet-desktop-windows-amd64.exe"
+          $binDir = "xunnet-desktop\build\bin"
+          if (-not (Test-Path $exe)) {
+            Write-Host "Skipping bundle: $exe not found"
+            exit 0
+          }
+          Write-Host "Running windeployqt..."
+          & "C:\Qt\6.5.3\mingw_64\bin\windeployqt.exe" `
+            --release `
+            --qmldir "xunnet-desktop\src\qml" `
+            --no-translations `
+            --no-system-d3d-compiler `
+            --no-opengl-sw `
+            $exe
+          Write-Host "Copying MinGW runtime DLLs..."
+          $mingwBin = "C:\Qt\Tools\mingw_1310_64\bin"
+          Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
+            Copy-Item $_.FullName -Destination $binDir -Force
+          }
+          Write-Host "Bundle complete:"
+          Get-ChildItem $binDir | Select-Object Name, Length
+
+      - name: Package Windows bundle (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $binDir = "xunnet-desktop\build\bin"
+          $zipPath = "xunnet-desktop\build\xunnet-desktop-windows-amd64.zip"
+          if (Test-Path $binDir) {
+            Compress-Archive -Path "$binDir\*" -DestinationPath $zipPath -Force
+            Write-Host "Created: $zipPath"
+          }
+
       - name: Upload Desktop binary to release
         uses: softprops/action-gh-release@v2
         with:
@@ -305,7 +342,7 @@ jobs:
           fail_on_unmatched_files: false
           files: |
             xunnet-desktop/build/bin/xunnet-desktop-linux-amd64
-            xunnet-desktop/build/bin/xunnet-desktop-windows-amd64.exe
+            xunnet-desktop/build/xunnet-desktop-windows-amd64.zip
 
   build-panel:
     name: Build Panel (${{ matrix.target.suffix }})
