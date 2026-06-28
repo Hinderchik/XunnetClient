@@ -54,6 +54,19 @@ class ProxiesViewModel @Inject constructor(
         }
     }
 
+    fun add(profile: Profile) {
+        viewModelScope.launch {
+            profileRepository.save(profile)
+                .onFailure { Timber.e(it, "Failed to add profile ${profile.name}") }
+        }
+    }
+
+    fun delete(id: String) {
+        viewModelScope.launch {
+            profileRepository.delete(id)
+        }
+    }
+
     fun connect(profile: Profile) {
         viewModelScope.launch {
             val config = singBoxCore.buildConfig(profile)

@@ -34,17 +34,19 @@ class FederationViewModel @Inject constructor(
     fun addPanel(panel: FederatedPanel) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true)
-            federationRepository.addPanel(panel)
-            _uiState.value = _uiState.value.copy(isLoading = false)
+            val r = federationRepository.addPanel(panel)
+            _uiState.value = _uiState.value.copy(
+                isLoading = false,
+                error = r.exceptionOrNull()?.message
+            )
         }
     }
 
-    fun syncPanel(id: String) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true)
-            federationRepository.syncPanel(id)
-            _uiState.value = _uiState.value.copy(isLoading = false)
-        }
+    suspend fun syncPanel(id: String): Result<Unit> {
+        _uiState.value = _uiState.value.copy(isLoading = true)
+        val r = federationRepository.syncPanel(id)
+        _uiState.value = _uiState.value.copy(isLoading = false, error = r.exceptionOrNull()?.message)
+        return r
     }
 
     fun deletePanel(id: String) {

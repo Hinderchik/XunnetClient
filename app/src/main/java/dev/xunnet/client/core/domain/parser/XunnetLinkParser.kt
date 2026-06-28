@@ -30,6 +30,13 @@ class XunnetLinkParser : LinkParser {
             trimmed.startsWith("trojan://", ignoreCase = true) -> parseTrojan(trimmed)
             trimmed.startsWith("ss://", ignoreCase = true) -> parseSs(trimmed)
             trimmed.startsWith("vmess://", ignoreCase = true) -> parseVmess(trimmed)
+            trimmed.startsWith("hysteria://", ignoreCase = true) -> parseHysteria1(trimmed)
+            trimmed.startsWith("hysteria2://", ignoreCase = true) ||
+            trimmed.startsWith("hy2://", ignoreCase = true) -> parseHysteria2(trimmed)
+            trimmed.startsWith("tuic://", ignoreCase = true) -> parseTuic(trimmed)
+            trimmed.startsWith("ssh://", ignoreCase = true) -> parseSsh(trimmed)
+            trimmed.startsWith("naive+", ignoreCase = true) -> parseNaive(trimmed)
+            trimmed.startsWith("wireguard://", ignoreCase = true) -> parseWireGuard(trimmed)
             trimmed.startsWith("xuncrypt://", ignoreCase = true) ->
                 throw IllegalArgumentException("xuncrypt requires password — use decrypt()")
             else -> throw IllegalArgumentException("Unsupported link scheme: ${trimmed.substringBefore("://")}")
@@ -236,6 +243,133 @@ class XunnetLinkParser : LinkParser {
     }
 
     // ---------------------------------------------------------------
+    // hysteria://host:port?protocol=udp&auth=...&...#name
+    // ---------------------------------------------------------------
+    private fun parseHysteria1(link: String): Profile {
+        val noScheme = link.removePrefixIgnoreCase("hysteria://")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        // hysteria:// may have no @ — host:port is the authority
+        val hostPort = authorityWithPath.substringAfter('@').ifEmpty { authorityWithPath }
+        val params = parseQuery(queryStr)
+        return buildProfile(
+            name = name,
+            protocol = "hysteria",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':').toInt(),
+            params = params
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // hysteria2://auth@host:port/?...#name  (or hy2://)
+    // ---------------------------------------------------------------
+    private fun parseHysteria2(link: String): Profile {
+        val normalized = when {
+            link.startsWith("hy2://", ignoreCase = true) -> link
+            else -> link
+        }
+        val noScheme = normalized.removePrefixIgnoreCase("hysteria2://")
+            .let { if (it.startsWith("//")) it else it }
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        val (auth, hostPort) = if ('@' in beforeFragment.substringBefore('?')) {
+            beforeFragment.substringBefore('?').substringBefore('@') to beforeFragment.substringBefore('?').substringAfter('@')
+        } else {
+            "" to beforeFragment.substringBefore('?')
+        }
+        val params = parseQuery(queryStr)
+        if (auth.isNotEmpty()) params["password"] = auth
+        return buildProfile(
+            name = name,
+            protocol = "hysteria2",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':').toInt(),
+            params = params
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // tuic://uuid:password@host:port/?...#name
+    // ---------------------------------------------------------------
+    private fun parseTuic(link: String): Profile {
+        val noScheme = link.removePrefixIgnoreCase("tuic://")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        val (userInfo, hostPort) = splitAuthority(beforeFragment, expectedScheme = "tuic")
+        val uuid = userInfo.substringBefore(':')
+        val password = userInfo.substringAfter(':')
+        val params = parseQuery(queryStr)
+        return buildProfile(
+            name = name,
+            protocol = "tuic",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':').toInt(),
+            params = params + ("uuid" to uuid, "password" to password)
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // ssh://user:password@host:port#name  (treated as TCP via sing-box ssh)
+    // ---------------------------------------------------------------
+    private fun parseSsh(link: String): Profile {
+        val noScheme = link.removePrefixIgnoreCase("ssh://")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        val (userInfo, hostPort) = splitAuthority(beforeFragment, expectedScheme = "ssh")
+        val (user, password) = userInfo.split(':', limit = 2).let {
+            it[0] to it.getOrElse(1) { "" }
+        }
+        val params = parseQuery(queryStr)
+        return buildProfile(
+            name = name,
+            protocol = "ssh",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':', "22").toInt(),
+            params = params + ("user" to user, "password" to password)
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // naive+https://user:password@host:port#name
+    // ---------------------------------------------------------------
+    private fun parseNaive(link: String): Profile {
+        val noScheme = link.removePrefixIgnoreCase("naive+")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        val (userInfo, hostPort) = splitAuthority(beforeFragment, expectedScheme = "naive")
+        val (user, password) = userInfo.split(':', limit = 2).let {
+            it[0] to it.getOrElse(1) { "" }
+        }
+        val params = parseQuery(queryStr)
+        return buildProfile(
+            name = name,
+            protocol = "naive",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':').toInt(),
+            params = params + ("username" to user, "password" to password)
+        )
+    }
+
+    // ---------------------------------------------------------------
+    // wireguard://privatekey@address:port/?publickey=...&...#name
+    // ---------------------------------------------------------------
+    private fun parseWireGuard(link: String): Profile {
+        val noScheme = link.removePrefixIgnoreCase("wireguard://")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val (authorityWithPath, queryStr) = splitQuery(beforeFragment)
+        val (privateKey, hostPort) = splitAuthority(beforeFragment, expectedScheme = "wireguard")
+        val params = parseQuery(queryStr)
+        return buildProfile(
+            name = name,
+            protocol = "wireguard",
+            address = hostPort.substringBefore(':'),
+            port = hostPort.substringAfter(':').toInt(),
+            params = params + ("private_key" to privateKey)
+        )
+    }
+
+    // ---------------------------------------------------------------
     // Helpers
     // ---------------------------------------------------------------
 
@@ -330,6 +464,37 @@ class XunnetLinkParser : LinkParser {
                 outbound.put("method", params.optString("method", profile.encryption ?: "chacha20-ietf-poly1305"))
                 outbound.put("password", params.optString("password"))
             }
+            "hysteria" -> {
+                outbound.put("auth_str", params.optString("auth", params.optString("auth_str", "")))
+                outbound.put("up_mbps", params.optInt("upmbps", 50))
+                outbound.put("down_mbps", params.optInt("downmbps", 100))
+                val obfs = JSONObject().put("type", params.optString("obfs-type", "plain"))
+                if (params.has("obfs-password")) obfs.put("password", params.optString("obfs-password"))
+                outbound.put("obfs", obfs)
+            }
+            "hysteria2", "hy2" -> {
+                outbound.put("password", params.optString("password", ""))
+            }
+            "tuic" -> {
+                outbound.put("uuid", params.optString("uuid", ""))
+                outbound.put("password", params.optString("password", ""))
+                outbound.put("congestion_control", params.optString("congestion_control", "cubic"))
+                outbound.put("udp_relay_mode", params.optString("udp_relay_mode", "native"))
+            }
+            "ssh" -> {
+                outbound.put("user", params.optString("user", ""))
+                outbound.put("password", params.optString("password", ""))
+                params.optString("private_key").takeIf { it.isNotEmpty() }?.let { outbound.put("private_key", it) }
+            }
+            "naive" -> {
+                outbound.put("username", params.optString("username", ""))
+                outbound.put("password", params.optString("password", ""))
+            }
+            "wireguard" -> {
+                outbound.put("private_key", params.optString("private_key", ""))
+                outbound.put("peer_public_key", params.optString("publickey", ""))
+                outbound.put("local_address", JSONArray().put(params.optString("address", "10.0.0.2/32")))
+            }
         }
 
         // TLS
@@ -358,6 +523,12 @@ class XunnetLinkParser : LinkParser {
         "vless" -> "vless"
         "vmess" -> "vmess"
         "trojan" -> "trojan"
+        "hysteria" -> "hysteria"
+        "hysteria2", "hy2" -> "hysteria2"
+        "tuic" -> "tuic"
+        "ssh" -> "ssh"
+        "naive" -> "naive"
+        "wireguard" -> "wireguard"
         else -> protocol
     }
 }
