@@ -251,9 +251,24 @@ jobs:
           path: |
             C:\Qt
             D:\Qt
-          key: qt-win64-mingw-6.5.3-${{ runner.os }}
+            D:\a\XunnetClient\Qt
+          key: qt-win64-mingw-6.5.3-v2-${{ runner.os }}
           restore-keys: |
             qt-win64-mingw-6.5.3-
+
+      - name: Verify Qt install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $qtRoot = "D:\a\XunnetClient\Qt\6.5.3\mingw_64"
+          $platforms = Join-Path $qtRoot "plugins\platforms"
+          if (-not (Test-Path $platforms) -or -not (Get-ChildItem $platforms -Filter "qwindows*.dll" -ErrorAction SilentlyContinue)) {
+            Write-Host "Qt install is incomplete (no platforms plugin). Clearing cache and re-installing."
+            Remove-Item -Recurse -Force "D:\a\XunnetClient\Qt" -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force "C:\Qt" -ErrorAction SilentlyContinue
+          } else {
+            Write-Host "Qt install OK (platforms plugin found)"
+          }
 
       - name: Install Qt + MinGW (Windows)
         if: runner.os == 'Windows'
