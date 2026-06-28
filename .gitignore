@@ -26,7 +26,7 @@ node_modules/
 web/build/
 
 # Docker
-data/
+/data/
 postgres-data/
 certs/
 .env
