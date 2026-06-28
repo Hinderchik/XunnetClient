@@ -6,7 +6,6 @@ name: Build Xunnet Desktop
       version:
         required: true
         type: string
-    secrets: inherit
   workflow_dispatch:
     inputs:
       version:

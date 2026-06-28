@@ -10,7 +10,6 @@ name: Build Xunnet Panel
         required: false
         type: boolean
         default: false
-    secrets: inherit
   push:
     branches:
       - main
