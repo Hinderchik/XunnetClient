@@ -439,7 +439,7 @@ jobs:
           }
 
           Write-Host ""
-          Write-Host "Bundle complete. Files in $binDir:"
+          Write-Host "Bundle complete. Files in ${binDir}:"
           Get-ChildItem $binDir -Recurse | Where-Object { -not $_.PSIsContainer } | Select-Object FullName, Length | Format-Table -AutoSize
 
       - name: Package Windows bundle (zip)
