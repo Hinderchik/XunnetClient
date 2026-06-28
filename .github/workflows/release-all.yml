@@ -23,6 +23,13 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/xunnet-panel
 
+# Workflow-level permissions: needed because called workflows (panel-build)
+# inherit permissions from the caller. 'packages: write' is required for
+# docker push to ghcr.io, 'contents: write' for creating the release.
+permissions:
+  contents: write
+  packages: write
+
 jobs:
   build-android:
     name: Build Android
