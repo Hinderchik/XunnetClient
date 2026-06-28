@@ -104,7 +104,7 @@ class SubscriptionFetcher(private val parser: LinkParser) {
         node.optString("network").takeIf { it.isNotEmpty() }?.let { params.put("network", it) }
         node.optJSONObject("ws-opts")?.let { ws ->
             ws.optString("path").takeIf { it.isNotEmpty() }?.let { params.put("path", it) }
-            ws.optJSONObject("headers")?.optString("Host").takeIf { it.isNotEmpty() }?.let { params.put("host", it) }
+            ws.optJSONObject("headers")?.optString("Host")?.takeIf { !it.isNullOrEmpty() }?.let { params.put("host", it) }
         }
         node.optJSONObject("grpc-opts")?.let { g ->
             g.optString("grpc-service-name").takeIf { it.isNotEmpty() }?.let { params.put("path", it) }
