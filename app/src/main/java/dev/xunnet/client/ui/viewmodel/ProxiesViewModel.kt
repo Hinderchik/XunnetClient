@@ -5,52 +5,66 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.xunnet.client.core.domain.model.Profile
 import dev.xunnet.client.core.domain.repository.ProfileRepository
+import dev.xunnet.client.core.vpn.SingBoxCore
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
 class ProxiesViewModel @Inject constructor(
-    private val profileRepository: ProfileRepository
+    private val profileRepository: ProfileRepository,
+    private val singBoxCore: SingBoxCore
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(ProxiesUiState())
-    val uiState: StateFlow<ProxiesUiState> = _uiState.asStateFlow()
+    private val _query = MutableStateFlow("")
+
+    val uiState: StateFlow<ProxiesUiState>
 
     init {
-        loadProfiles()
-    }
+        val profilesFlow = profileRepository.observeAll()
+        val statsFlow = singBoxCore.stats
+        val queryFlow = _query
 
-    private fun loadProfiles() {
-        viewModelScope.launch {
-            profileRepository.observeAll().collect { profiles ->
-                _uiState.value = _uiState.value.copy(allProfiles = profiles, filteredProfiles = profiles)
+        uiState = combine(profilesFlow, statsFlow, queryFlow) { profiles, stats, query ->
+            val filtered = if (query.isBlank()) profiles else profiles.filter {
+                it.name.contains(query, ignoreCase = true) ||
+                        it.protocol.contains(query, ignoreCase = true) ||
+                        it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
             }
-        }
+            ProxiesUiState(
+                proxies = filtered,
+                query = query,
+                activeProfileId = stats.activeProfileId
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ProxiesUiState())
     }
 
-    fun search(query: String) {
-        val all = _uiState.value.allProfiles
-        val filtered = if (query.isBlank()) all else all.filter {
-            it.name.contains(query, ignoreCase = true) ||
-                    it.protocol.contains(query, ignoreCase = true) ||
-                    it.tags.any { tag -> tag.contains(query, ignoreCase = true) }
-        }
-        _uiState.value = _uiState.value.copy(filteredProfiles = filtered, searchQuery = query)
-    }
+    fun onQueryChange(q: String) { _query.value = q }
 
-    fun deleteProfile(id: String) {
+    fun toggleEnabled(id: String, enabled: Boolean) {
         viewModelScope.launch {
-            profileRepository.delete(id)
+            val profile = profileRepository.getById(id) ?: return@launch
+            profileRepository.save(profile.copy(enabled = enabled))
+                .onFailure { Timber.e(it, "Failed to toggle profile $id") }
+        }
+    }
+
+    fun connect(profile: Profile) {
+        viewModelScope.launch {
+            val config = singBoxCore.buildConfig(profile)
+            singBoxCore.startRaw(config)
         }
     }
 
     data class ProxiesUiState(
-        val allProfiles: List<Profile> = emptyList(),
-        val filteredProfiles: List<Profile> = emptyList(),
-        val searchQuery: String = "",
+        val proxies: List<Profile> = emptyList(),
+        val query: String = "",
+        val activeProfileId: String? = null,
         val isLoading: Boolean = false
     )
 }

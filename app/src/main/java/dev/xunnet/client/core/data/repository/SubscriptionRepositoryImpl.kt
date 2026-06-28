@@ -4,6 +4,7 @@ import dev.xunnet.client.core.data.local.ProfileDao
 import dev.xunnet.client.core.data.local.SubscriptionDao
 import dev.xunnet.client.core.data.local.entity.SubscriptionEntity
 import dev.xunnet.client.core.data.remote.SubscriptionApi
+import dev.xunnet.client.core.data.remote.SubscriptionFetcher
 import dev.xunnet.client.core.domain.model.Profile
 import dev.xunnet.client.core.domain.model.Subscription
 import dev.xunnet.client.core.domain.parser.LinkParser
@@ -17,7 +18,8 @@ class SubscriptionRepositoryImpl(
     private val dao: SubscriptionDao,
     private val profileDao: ProfileDao,
     private val api: SubscriptionApi,
-    private val parser: LinkParser
+    private val parser: LinkParser,
+    private val fetcher: SubscriptionFetcher = SubscriptionFetcher(parser)
 ) : SubscriptionRepository {
 
     override fun observeAll(): Flow<List<Subscription>> = dao.observeAll().map { list ->
@@ -79,11 +81,7 @@ class SubscriptionRepositoryImpl(
         return response.body()?.string() ?: throw IllegalStateException("Empty body")
     }
 
-    private fun parseBody(body: String, format: String): List<Profile> {
-        return body.lines().filter { it.isNotBlank() }.mapNotNull { line ->
-            parser.parse(line).getOrNull()
-        }
-    }
+    private fun parseBody(body: String, format: String): List<Profile> = fetcher.parse(body)
 
     private fun SubscriptionEntity.toDomain(): Subscription = Subscription(
         id = id,
