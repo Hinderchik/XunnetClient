@@ -42,7 +42,7 @@ class FederationViewModel @Inject constructor(
         }
     }
 
-    suspend fun syncPanel(id: String): Result<Unit> {
+    suspend fun syncPanel(id: String): Result<List<dev.xunnet.client.core.domain.model.Profile>> {
         _uiState.value = _uiState.value.copy(isLoading = true)
         val r = federationRepository.syncPanel(id)
         _uiState.value = _uiState.value.copy(isLoading = false, error = r.exceptionOrNull()?.message)

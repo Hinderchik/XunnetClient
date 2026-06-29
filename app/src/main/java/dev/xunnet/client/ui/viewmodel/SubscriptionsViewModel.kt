@@ -44,7 +44,7 @@ class SubscriptionsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             subscriptionRepository.add(
-                Subscription(name = name, url = url)
+                Subscription(id = java.util.UUID.randomUUID().toString(), name = name, url = url)
             ).onFailure { _snackbar.value = "Ошибка: ${it.message}" }
                 .onSuccess { _snackbar.value = "Подписка добавлена" }
         }
