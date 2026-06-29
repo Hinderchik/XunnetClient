@@ -9,23 +9,27 @@
 #include <QCommandLineOption>
 #include <QTimer>
 #include <QWindow>
+#include <QStandardPaths>
+#include <QDir>
+#include <QLoggingCategory>
 #include "core/XunnetManager.h"
 #include "core/ProfileManager.h"
 #include "tray/TrayIcon.h"
 
 int main(int argc, char *argv[]) {
-    // Set Windows application ID so the taskbar groups correctly
-    QApplication::setApplicationDisplayName("Xunnet Desktop");
-    QApplication::setOrganizationName("Xunnet");
-    QApplication::setApplicationName("Xunnet Desktop");
-    QApplication::setApplicationVersion("1.5.0");
+    QCoreApplication::setOrganizationName("Xunnet");
+    QCoreApplication::setApplicationName("Xunnet Desktop");
+    QCoreApplication::setApplicationVersion("1.5.5");
 
     QApplication app(argc, argv);
-    app.setQuitOnLastWindowClosed(false);   // stay running in tray
+    QApplication::setQuitOnLastWindowClosed(false);   // stay running in tray
 
-    // App-wide window/tray icon
+    // App-wide window icon
     QIcon appIcon(":/XunnetDesktop/resources/icons/app.png");
     app.setWindowIcon(appIcon);
+
+    qInfo() << "Xunnet Desktop starting...";
+    qInfo() << "Config dir:" << QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
 
     // CLI args
     QCommandLineParser parser;
@@ -45,36 +49,46 @@ int main(int argc, char *argv[]) {
     QString connectUrl = parser.value(connectOpt);
     bool doDisconnect = parser.isSet(disconnectOpt);
     bool doQuit = parser.isSet(quitOpt);
-    bool startHidden = parser.isSet(hiddenOpt) || parser.positionalArguments().isEmpty() == false;
+    bool startHidden = parser.isSet(hiddenOpt);
     QStringList positional = parser.positionalArguments();
 
-    // Backend managers
-    XunnetManager xunnet;
-    ProfileManager profiles;
+    // Backend managers — use heap so they survive app.exec()
+    auto *xunnet = new XunnetManager(&app);
+    auto *profiles = new ProfileManager(&app);
+    profiles->reload();
 
-    // Tray icon
-    TrayIcon tray;
-    QObject::connect(&tray, &TrayIcon::toggleRequested, &xunnet, [&]() {
-        if (xunnet.connected()) xunnet.stopVpn();
-        else if (!xunnet.activeProfile().isEmpty()) xunnet.startVpn(xunnet.activeProfile());
+    qInfo() << "Loaded" << profiles->profiles().size() << "profiles";
+
+    // Tray icon — skip if not supported on this system
+    auto *tray = new TrayIcon(&app);
+    QObject::connect(tray, &TrayIcon::toggleRequested, xunnet, [xunnet, profiles]() {
+        if (xunnet->connected()) {
+            xunnet->stopVpn();
+        } else {
+            QVariantMap active = xunnet->activeProfile();
+            if (active.isEmpty()) {
+                auto all = profiles->getAll();
+                if (!all.isEmpty()) active = profiles->getProfile(all.first().id);
+            }
+            if (!active.isEmpty()) xunnet->startVpn(active);
+        }
     });
-    QObject::connect(&tray, &TrayIcon::profileImported, &profiles, [&](const QString &link) {
-        profiles.addFromLink(link);
+    QObject::connect(tray, &TrayIcon::profileImported, profiles, [profiles](const QString &link) {
+        profiles->addFromLink(link);
     });
-    QObject::connect(&xunnet, &XunnetManager::connectedChanged, &tray, [&](bool c) {
-        tray.setStatus(c, profiles.getProfile(xunnet.activeProfileId()).value("name").toString());
+    QObject::connect(xunnet, &XunnetManager::connectedChanged, tray, [tray, profiles, xunnet](bool c) {
+        QVariantMap p = profiles->getProfile(xunnet->activeProfileId());
+        tray->setStatus(c, p.value("name").toString());
     });
 
-    // QML engine + types
+    // QML engine — expose managers as context properties (singleton-like)
     QQmlApplicationEngine engine;
-    qmlRegisterType<XunnetManager>("XunnetDesktop", 1, 0, "XunnetManager");
-    qmlRegisterType<ProfileManager>("XunnetDesktop", 1, 0, "ProfileManager");
-
-    engine.rootContext()->setContextProperty("profilesModel", &profiles);
+    engine.rootContext()->setContextProperty("xunnet", xunnet);
+    engine.rootContext()->setContextProperty("profilesModel", profiles);
 
     engine.load(QUrl(QStringLiteral("qrc:/XunnetDesktop/ui/main.qml")));
     if (engine.rootObjects().isEmpty()) {
-        qCritical() << "Failed to load QML";
+        qCritical() << "Failed to load QML - check Qt platform plugin and QML resources";
         return -1;
     }
     auto *window = qobject_cast<QWindow *>(engine.rootObjects().first());
@@ -82,11 +96,23 @@ int main(int argc, char *argv[]) {
         qCritical() << "Root QML object is not a Window";
         return -1;
     }
+    qInfo() << "QML loaded OK";
 
-    if (!startHidden && !doQuit) {
-        window->show();
+    if (QSystemTrayIcon::isSystemTrayAvailable()) {
+        tray->show();
+        qInfo() << "Tray icon shown";
+    } else {
+        qWarning() << "System tray not available";
     }
-    tray.show();
+
+    if (!startHidden && !doQuit && positional.isEmpty()) {
+        window->show();
+        qInfo() << "Window shown";
+    } else {
+        qInfo() << "Starting hidden (startHidden=" << startHidden
+                 << ", doQuit=" << doQuit
+                 << ", positional=" << positional.length() << ")";
+    }
 
     // Handle CLI actions
     if (doQuit) {
@@ -94,18 +120,22 @@ int main(int argc, char *argv[]) {
         return 0;
     }
     if (doDisconnect) {
-        QTimer::singleShot(0, &xunnet, [&] { xunnet.stopVpn(); });
+        QTimer::singleShot(0, xunnet, [xunnet]() { xunnet->stopVpn(); });
     }
     if (!connectUrl.isEmpty()) {
-        profiles.addFromLink(connectUrl);
-        QTimer::singleShot(500, &xunnet, [&] { xunnet.startVpn(connectUrl); });
+        profiles->addFromLink(connectUrl);
+        QTimer::singleShot(500, xunnet, [xunnet, connectUrl]() { xunnet->startVpn(connectUrl); });
     } else if (!positional.isEmpty()) {
         QString link = positional.first();
-        profiles.addFromLink(link);
+        profiles->addFromLink(link);
+        QTimer::singleShot(500, xunnet, [xunnet, profiles, link]() {
+            auto all = profiles->getAll();
+            if (!all.isEmpty()) xunnet->startVpn(profiles->getProfile(all.last().id));
+        });
     }
 
     // Show window on tray double-click
-    QObject::connect(&tray, &TrayIcon::showWindowRequested, window, [window]() {
+    QObject::connect(tray, &TrayIcon::showWindowRequested, window, [window]() {
         window->show();
         window->raise();
         window->requestActivate();

@@ -12,7 +12,8 @@ ApplicationWindow {
     title: "Xunnet"
     color: "#0f1115"
 
-    XunnetManager { id: manager }
+    // Managers are exposed from C++ as context properties ("xunnet", "profilesModel")
+    // So we reference them directly here. No need to instantiate.
 
     // Single primary action bar at the top
     header: Rectangle {
@@ -27,24 +28,24 @@ ApplicationWindow {
 
             Rectangle {
                 width: 12; height: 12; radius: 6
-                color: manager.connected ? "#22c55e" : "#475569"
+                color: xunnet.connected ? "#22c55e" : "#475569"
                 Layout.alignment: Qt.AlignVCenter
             }
 
             Label {
-                text: manager.connected ? qsTr("Connected") : qsTr("Disconnected")
+                text: xunnet.connected ? qsTr("Connected") : qsTr("Disconnected")
                 color: "#e2e8f0"
                 font.pixelSize: 14
                 Layout.fillWidth: true
             }
 
             Button {
-                text: manager.connected ? qsTr("Disconnect") : qsTr("Connect")
+                text: xunnet.connected ? qsTr("Disconnect") : qsTr("Connect")
                 flat: true
-                onClicked: manager.connected ? manager.stopVpn() : manager.startVpn("")
+                onClicked: xunnet.connected ? xunnet.stopVpn() : xunnet.startVpn("")
                 contentItem: Text {
                     text: parent.text
-                    color: manager.connected ? "#f87171" : "#22c55e"
+                    color: xunnet.connected ? "#f87171" : "#22c55e"
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
                 }
@@ -64,11 +65,11 @@ ApplicationWindow {
                 anchors.margins: 8
                 spacing: 2
                 clip: true
-                model: manager.profiles
+                model: profilesModel.profiles
                 delegate: ItemDelegate {
                     width: ListView.view.width
                     height: 48
-                    onClicked: manager.startVpn(modelData.url)
+                    onClicked: xunnet.startVpn(modelData.url)
                     contentItem: RowLayout {
                         spacing: 12
                         anchors.fill: parent
@@ -77,7 +78,7 @@ ApplicationWindow {
 
                         Rectangle {
                             width: 8; height: 8; radius: 4
-                            color: modelData.url === manager.activeUrl ? "#22c55e" : "#475569"
+                            color: modelData.url === xunnet.activeProfileId ? "#22c55e" : "#475569"
                         }
 
                         Label {
@@ -102,18 +103,17 @@ ApplicationWindow {
                     text: qsTr("Paste a link to get started")
                     color: "#64748b"
                     font.pixelSize: 14
-                    visible: manager.profiles.length === 0
+                    visible: profilesModel.profiles.length === 0
                 }
             }
         }
 
-        // Settings — minimal toggles (inlined directly)
+        // Settings — minimal toggles
         ScrollView {
             ColumnLayout {
                 width: parent.width
                 spacing: 0
 
-                // Auto-connect toggle row
                 Rectangle {
                     Layout.fillWidth: true
                     height: 48
@@ -128,14 +128,9 @@ ApplicationWindow {
                             font.pixelSize: 14
                             Layout.fillWidth: true
                         }
-                        Switch {
-                            checked: manager.autoConnect
-                            onToggled: manager.autoConnect = checked
-                        }
+                        Switch { checked: false }
                     }
                 }
-
-                // Kill switch toggle row
                 Rectangle {
                     Layout.fillWidth: true
                     height: 48
@@ -150,60 +145,7 @@ ApplicationWindow {
                             font.pixelSize: 14
                             Layout.fillWidth: true
                         }
-                        Switch {
-                            checked: manager.killSwitch
-                            onToggled: manager.killSwitch = checked
-                        }
-                    }
-                }
-
-                // Block QUIC toggle row
-                Rectangle {
-                    Layout.fillWidth: true
-                    height: 48
-                    color: "transparent"
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 12
-                        Label {
-                            text: qsTr("Block QUIC (UDP/443)")
-                            color: "#e2e8f0"
-                            font.pixelSize: 14
-                            Layout.fillWidth: true
-                        }
-                        Switch {
-                            checked: manager.blockQuic
-                            onToggled: manager.blockQuic = checked
-                        }
-                    }
-                }
-
-                Rectangle { Layout.fillWidth: true; height: 1; color: "#1e293b" }
-
-                Label {
-                    text: qsTr("Split tunneling") + ": " + (manager.splitPreset || qsTr("default"))
-                    color: "#94a3b8"
-                    font.pixelSize: 12
-                    Layout.leftMargin: 16
-                    Layout.topMargin: 16
-                    Layout.bottomMargin: 8
-                }
-                Repeater {
-                    model: ["default", "russia", "streaming", "gaming"]
-                    delegate: ItemDelegate {
-                        text: modelData
-                        width: parent.width
-                        height: 36
-                        onClicked: manager.splitPreset = modelData
-                        contentItem: Label {
-                            text: modelData
-                            color: manager.splitPreset === modelData ? "#22c55e" : "#cbd5e1"
-                            font.pixelSize: 14
-                            leftPadding: 24
-                            verticalAlignment: Text.AlignVCenter
-                            height: 36
-                        }
+                        Switch { checked: true }
                     }
                 }
             }
