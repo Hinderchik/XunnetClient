@@ -24,9 +24,11 @@ class XunnetLinkParser : LinkParser {
 
     override fun parse(link: String): Result<Profile> = runCatching {
         val trimmed = link.trim()
+        if (trimmed.startsWith("chain://", ignoreCase = true)) {
+            throw IllegalArgumentException("chain:// returns multiple profiles — use parseChain()")
+        }
         when {
             trimmed.startsWith("xunnet://", ignoreCase = true) -> parseXunnet(trimmed)
-            trimmed.startsWith("chain://", ignoreCase = true) -> parseChain(trimmed)
             trimmed.startsWith("vless://", ignoreCase = true) -> parseVless(trimmed)
             trimmed.startsWith("trojan://", ignoreCase = true) -> parseTrojan(trimmed)
             trimmed.startsWith("ss://", ignoreCase = true) -> parseSs(trimmed)

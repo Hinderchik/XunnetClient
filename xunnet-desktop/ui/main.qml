@@ -117,17 +117,17 @@ ApplicationWindow {
                 SettingsCheckRow {
                     label: qsTr("Auto-connect on launch")
                     checked: manager.autoConnect
-                    onToggle: manager.autoConnect = checked
+                    onToggled: manager.autoConnect = checked
                 }
                 SettingsCheckRow {
                     label: qsTr("Kill switch")
                     checked: manager.killSwitch
-                    onToggle: manager.killSwitch = checked
+                    onToggled: manager.killSwitch = checked
                 }
                 SettingsCheckRow {
                     label: qsTr("Block QUIC (UDP/443)")
                     checked: manager.blockQuic
-                    onToggle: manager.blockQuic = checked
+                    onToggled: manager.blockQuic = checked
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: "#1e293b" }
@@ -170,7 +170,7 @@ ApplicationWindow {
 component SettingsCheckRow : ItemDelegate {
     property string label
     property bool checked
-    signal onToggle(bool checked)
+    signal toggled(bool value)
     height: 48
     contentItem: RowLayout {
         anchors.fill: parent
@@ -185,7 +185,7 @@ component SettingsCheckRow : ItemDelegate {
         }
         Switch {
             checked: parent.parent.checked
-            onToggled: parent.parent.onToggle(checked)
+            onToggled: parent.parent.toggled(checked)
         }
     }
 }

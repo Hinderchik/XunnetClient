@@ -63,7 +63,7 @@ fun ProxiesScreen(
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp, bottom = 96.dp)
+                    contentPadding = PaddingValues(start = 0.dp, top = 8.dp, end = 0.dp, bottom = 96.dp)
                 ) {
                     items(items = uiState.proxies, key = { p -> p.id }) { profile ->
                         MinimalProfileRow(
