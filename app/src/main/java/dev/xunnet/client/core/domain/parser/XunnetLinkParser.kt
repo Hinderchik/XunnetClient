@@ -40,6 +40,8 @@ class XunnetLinkParser : LinkParser {
             trimmed.startsWith("ssh://", ignoreCase = true) -> parseSsh(trimmed)
             trimmed.startsWith("naive+", ignoreCase = true) -> parseNaive(trimmed)
             trimmed.startsWith("wireguard://", ignoreCase = true) -> parseWireGuard(trimmed)
+            trimmed.startsWith("awg://", ignoreCase = true) ||
+            trimmed.startsWith("amneziawg://", ignoreCase = true) -> parseAmneziaWG(trimmed)
             trimmed.startsWith("xuncrypt://", ignoreCase = true) ->
                 throw IllegalArgumentException("xuncrypt requires password — use decrypt()")
             else -> throw IllegalArgumentException("Unsupported link scheme: ${trimmed.substringBefore("://")}")
@@ -355,6 +357,15 @@ class XunnetLinkParser : LinkParser {
     }
 
     // ---------------------------------------------------------------
+    // awg:// or amneziawg:// — WireGuard with Amnezia obfuscation
+    // Params: jc, jmin, jmax, s1, s2, h1, h2, h3, h4
+    // ---------------------------------------------------------------
+    private fun parseAmneziaWG(link: String): Profile {
+        val profile = parseWireGuard(link)
+        return profile.copy(protocol = "amneziawg")
+    }
+
+    // ---------------------------------------------------------------
     // wireguard://privatekey@address:port/?publickey=...&...#name
     // ---------------------------------------------------------------
     private fun parseWireGuard(link: String): Profile {
@@ -517,6 +528,25 @@ class XunnetLinkParser : LinkParser {
                 outbound.put("peer_public_key", params.optString("publickey", ""))
                 outbound.put("local_address", JSONArray().put(params.optString("address", "10.0.0.2/32")))
             }
+            "amneziawg" -> {
+                // AmneziaWG is sing-box-compatible WireGuard with obfuscation
+                outbound.put("type", "wireguard")
+                outbound.put("private_key", params.optString("private_key", ""))
+                outbound.put("peer_public_key", params.optString("publickey", ""))
+                outbound.put("local_address", JSONArray().put(params.optString("address", "10.0.0.2/32")))
+                val amnezia = JSONObject().apply {
+                    if (params.has("jc")) put("Jc", params.optInt("jc"))
+                    if (params.has("jmin")) put("Jmin", params.optInt("jmin"))
+                    if (params.has("jmax")) put("Jmax", params.optInt("jmax"))
+                    if (params.has("s1")) put("S1", params.optInt("s1"))
+                    if (params.has("s2")) put("S2", params.optInt("s2"))
+                    if (params.has("h1")) put("H1", params.optString("h1"))
+                    if (params.has("h2")) put("H2", params.optString("h2"))
+                    if (params.has("h3")) put("H3", params.optString("h3"))
+                    if (params.has("h4")) put("H4", params.optString("h4"))
+                }
+                outbound.put("amnezia", amnezia)
+            }
         }
 
         // TLS
@@ -551,6 +581,7 @@ class XunnetLinkParser : LinkParser {
         "ssh" -> "ssh"
         "naive" -> "naive"
         "wireguard" -> "wireguard"
+        "amneziawg", "awg" -> "wireguard"  // AmneziaWG uses wireguard type with amnezia field
         else -> protocol
     }
 }

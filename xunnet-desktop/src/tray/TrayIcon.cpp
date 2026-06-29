@@ -77,7 +77,7 @@ QString TrayIcon::pasteFromClipboard() {
     static const QStringList schemes = {
         "xunnet://", "vless://", "vmess://", "trojan://", "ss://",
         "hysteria://", "hysteria2://", "hy2://", "tuic://",
-        "ssh://", "wireguard://"
+        "ssh://", "wireguard://", "awg://", "amneziawg://"
     };
     bool ok = false;
     for (const auto &s : schemes) {
