@@ -305,7 +305,7 @@ class XunnetLinkParser : LinkParser {
             protocol = "tuic",
             address = hostPort.substringBefore(':'),
             port = hostPort.substringAfter(':').toInt(),
-            params = params + ("uuid" to uuid, "password" to password)
+            params = params + mapOf("uuid" to uuid, "password" to password)
         )
     }
 
@@ -326,7 +326,7 @@ class XunnetLinkParser : LinkParser {
             protocol = "ssh",
             address = hostPort.substringBefore(':'),
             port = hostPort.substringAfter(':', "22").toInt(),
-            params = params + ("user" to user, "password" to password)
+            params = params + mapOf("user" to user, "password" to password)
         )
     }
 
@@ -347,7 +347,7 @@ class XunnetLinkParser : LinkParser {
             protocol = "naive",
             address = hostPort.substringBefore(':'),
             port = hostPort.substringAfter(':').toInt(),
-            params = params + ("username" to user, "password" to password)
+            params = params + mapOf("username" to user, "password" to password)
         )
     }
 
