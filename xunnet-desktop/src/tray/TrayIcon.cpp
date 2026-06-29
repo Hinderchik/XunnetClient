@@ -4,10 +4,17 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMessageBox>
+#include <QStyle>
 
 TrayIcon::TrayIcon(QObject *parent) : QObject(parent) {
     m_trayIcon = new QSystemTrayIcon(this);
     m_menu = new QMenu();
+
+    // Load icons from Qt resources (PNG for cross-platform compat)
+    m_iconDefault = QIcon(":/XunnetDesktop/resources/icons/app.png");
+    m_iconConnected = QIcon(":/XunnetDesktop/resources/icons/app-connected.png");
+    m_iconError = QIcon(":/XunnetDesktop/resources/icons/app-error.png");
+    m_trayIcon->setIcon(m_iconDefault);
 
     // Single dynamic action — Connect/Disconnect
     m_toggleAction = new QAction(this);
@@ -51,12 +58,13 @@ void TrayIcon::show() {
                              QSystemTrayIcon::Information, 3000);
 }
 
-void TrayIcon::setStatus(bool connected, const QString &profileName) {
+void TrayIcon::setStatus(bool connected, const QString &profileName, bool error) {
     m_trayIcon->setToolTip(QStringLiteral("Xunnet - %1 (%2)")
                                .arg(profileName)
-                               .arg(connected ? tr("Connected") : tr("Disconnected")));
-    QString iconPath = connected ? ":/icons/app-connected.svg" : ":/icons/app.svg";
-    m_trayIcon->setIcon(QIcon(iconPath));
+                               .arg(error ? tr("Error")
+                                    : connected ? tr("Connected")
+                                    : tr("Disconnected")));
+    m_trayIcon->setIcon(error ? m_iconError : (connected ? m_iconConnected : m_iconDefault));
     if (m_toggleAction) {
         m_toggleAction->setText(connected ? tr("Disconnect") : tr("Connect"));
     }
