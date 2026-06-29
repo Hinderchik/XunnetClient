@@ -52,12 +52,12 @@ ApplicationWindow {
         }
     }
 
-    // Single content area — profile list
+    // Single content area — profile list + settings
     StackLayout {
         anchors.fill: parent
         currentIndex: 0
 
-        // Profile list (was Dashboard + Proxies merged)
+        // Profile list
         Item {
             ListView {
                 anchors.fill: parent
@@ -97,7 +97,6 @@ ApplicationWindow {
                     }
                 }
 
-                // Empty state
                 Label {
                     anchors.centerIn: parent
                     text: qsTr("Paste a link to get started")
@@ -108,32 +107,82 @@ ApplicationWindow {
             }
         }
 
-        // Settings — minimal toggles
+        // Settings — minimal toggles (inlined directly)
         ScrollView {
             ColumnLayout {
                 width: parent.width
                 spacing: 0
 
-                SettingsCheckRow {
-                    label: qsTr("Auto-connect on launch")
-                    checked: manager.autoConnect
-                    onToggled: manager.autoConnect = checked
+                // Auto-connect toggle row
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 48
+                    color: "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 12
+                        Label {
+                            text: qsTr("Auto-connect on launch")
+                            color: "#e2e8f0"
+                            font.pixelSize: 14
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: manager.autoConnect
+                            onToggled: manager.autoConnect = checked
+                        }
+                    }
                 }
-                SettingsCheckRow {
-                    label: qsTr("Kill switch")
-                    checked: manager.killSwitch
-                    onToggled: manager.killSwitch = checked
+
+                // Kill switch toggle row
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 48
+                    color: "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 12
+                        Label {
+                            text: qsTr("Kill switch")
+                            color: "#e2e8f0"
+                            font.pixelSize: 14
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: manager.killSwitch
+                            onToggled: manager.killSwitch = checked
+                        }
+                    }
                 }
-                SettingsCheckRow {
-                    label: qsTr("Block QUIC (UDP/443)")
-                    checked: manager.blockQuic
-                    onToggled: manager.blockQuic = checked
+
+                // Block QUIC toggle row
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 48
+                    color: "transparent"
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 16
+                        anchors.rightMargin: 12
+                        Label {
+                            text: qsTr("Block QUIC (UDP/443)")
+                            color: "#e2e8f0"
+                            font.pixelSize: 14
+                            Layout.fillWidth: true
+                        }
+                        Switch {
+                            checked: manager.blockQuic
+                            onToggled: manager.blockQuic = checked
+                        }
+                    }
                 }
 
                 Rectangle { Layout.fillWidth: true; height: 1; color: "#1e293b" }
 
                 Label {
-                    text: qsTr("Split tunneling: ") + (manager.splitPreset || qsTr("default"))
+                    text: qsTr("Split tunneling") + ": " + (manager.splitPreset || qsTr("default"))
                     color: "#94a3b8"
                     font.pixelSize: 12
                     Layout.leftMargin: 16
@@ -145,6 +194,7 @@ ApplicationWindow {
                     delegate: ItemDelegate {
                         text: modelData
                         width: parent.width
+                        height: 36
                         onClicked: manager.splitPreset = modelData
                         contentItem: Label {
                             text: modelData
@@ -163,29 +213,5 @@ ApplicationWindow {
     footer: TabBar {
         TabButton { text: qsTr("Proxies"); width: parent.width / 2 }
         TabButton { text: qsTr("Settings"); width: parent.width / 2 }
-    }
-}
-
-// Minimal toggle row component
-component SettingsCheckRow : ItemDelegate {
-    property string label
-    property bool checked
-    signal toggled(bool value)
-    height: 48
-    contentItem: RowLayout {
-        anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 12
-
-        Label {
-            text: label
-            color: "#e2e8f0"
-            font.pixelSize: 14
-            Layout.fillWidth: true
-        }
-        Switch {
-            checked: parent.parent.checked
-            onToggled: parent.parent.toggled(checked)
-        }
     }
 }
