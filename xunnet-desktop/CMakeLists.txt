@@ -24,7 +24,7 @@ if(WIN32)
     set_target_properties(XunnetDesktopApp PROPERTIES WIN32_EXECUTABLE TRUE)  
 endif()  
   
-qt_generate_deploy_app_script(TARGET_NAME XunnetDesktopApp OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)  
+qt_generate_deploy_app_script(TARGET XunnetDesktopApp OUTPUT_SCRIPT deploy_script NO_UNSUPPORTED_PLATFORM_ERROR)  
   
 include(GNUInstallDirs)  
 install(TARGETS XunnetDesktopApp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})  
