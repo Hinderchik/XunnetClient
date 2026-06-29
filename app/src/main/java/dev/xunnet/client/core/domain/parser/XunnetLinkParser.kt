@@ -108,23 +108,24 @@ class XunnetLinkParser : LinkParser {
         val sections = mutableMapOf<String, MutableMap<String, String>>()
         var current: MutableMap<String, String>? = null
 
-        conf.lineSequence()
-            .map { it.substringBefore('#').trim() }   // strip comments
-            .filter { it.isNotEmpty() }
-            .forEach { line ->
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    val name = line.substring(1, line.length - 1).trim()
-                    current = mutableMapOf()
-                    sections[name] = current
-                } else {
-                    val eq = line.indexOf('=')
-                    if (eq > 0 && current != null) {
-                        val key = line.substring(0, eq).trim()
-                        val value = line.substring(eq + 1).trim()
-                        current!![key] = value
-                    }
+        for (rawLine in conf.lineSequence()) {
+            val line = rawLine.substringBefore('#').trim()
+            if (line.isEmpty()) continue
+
+            if (line.startsWith("[") && line.endsWith("]")) {
+                val name = line.substring(1, line.length - 1).trim()
+                val map = mutableMapOf<String, String>()
+                sections[name] = map
+                current = map
+            } else {
+                val eq = line.indexOf('=')
+                if (eq > 0) {
+                    val key = line.substring(0, eq).trim()
+                    val value = line.substring(eq + 1).trim()
+                    current?.set(key, value)
                 }
             }
+        }
 
         val iface = sections["Interface"]
             ?: throw IllegalArgumentException("Missing [Interface] section in .conf")
