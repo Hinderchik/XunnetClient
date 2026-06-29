@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(XunnetDesktop VERSION 1.5.0 LANGUAGES CXX)
+project(XunnetDesktop VERSION 1.5.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -7,7 +7,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network Qml Quick QuickControls2)
 
 set(SOURCES
     src/main.cpp
@@ -87,13 +87,24 @@ target_link_libraries(XunnetDesktopApp PRIVATE
     Qt6::Network
     Qt6::Qml
     Qt6::Quick
+    Qt6::QuickControls2
 )
 
-# --- Install + CPack installer ---
+# Generate windeployqt-based deploy script
+qt_generate_deploy_app_script(
+    TARGET_NAME XunnetDesktopApp
+    OUTPUT_SCRIPT deploy_script
+    NO_UNSUPPORTED_PLATFORM_ERROR
+    MACOS_BUNDLE OFF
+)
+
+# Install + deploy
 include(GNUInstallDirs)
 install(TARGETS XunnetDesktopApp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(SCRIPT ${deploy_script})
 install(DIRECTORY resources DESTINATION ${CMAKE_INSTALL_DATADIR}/xunnet-desktop)
 
+# --- CPack installer ---
 set(CPACK_GENERATOR "NSIS;DEB;RPM;TGZ")
 set(CPACK_PACKAGE_NAME "xunnet-desktop")
 set(CPACK_PACKAGE_VENDOR "Xunnet")
@@ -104,13 +115,14 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "Xunnet")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Hinderchik/XunnetClient")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/../LICENSE")
 
+# Windows NSIS installer config
 if(WIN32)
     set(CPACK_GENERATOR "NSIS")
     set(CPACK_NSIS_DISPLAY_NAME "Xunnet Desktop ${PROJECT_VERSION}")
     set(CPACK_NSIS_PACKAGE_NAME "Xunnet Desktop")
     set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64\\Xunnet")
     set(CPACK_NSIS_CREATE_ICONS "ONE")
-    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.svg")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_CURRENT_SOURCE_DIR}/resources/icons/app.ico")
     set(CPACK_NSIS_EXECUTABLES_DIRECTORY "bin")
     set(CPACK_NSIS_INSTALLED_ICON_NAME "bin/XunnetDesktopApp.exe")
     # Create Start Menu shortcut pointing to the installed exe

@@ -293,10 +293,15 @@ jobs:
       - name: Build (Linux)
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get install -y nsis
           cd xunnet-desktop
           mkdir -p build && cd build
-          cmake ..
+          cmake -DCMAKE_BUILD_TYPE=Release ..
           cmake --build . --parallel
+          # Build DEB installer via cpack
+          cpack -G DEB
+          # Also create portable tarball
+          cpack -G TGZ
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
@@ -307,6 +312,22 @@ jobs:
           cd build
           cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="C:/Qt/6.5.3/mingw_64"
           cmake --build .
+          # Run install script (triggers windeployqt to bundle Qt DLLs + plugins)
+          cmake --install . --prefix _install 2>&1 | Out-Null
+          # Build NSIS .exe installer via cpack
+          cpack -G NSIS
+
+      - name: Upload Desktop installer to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare-release.outputs.tag_name }}
+          fail_on_unmatched_files: false
+          files: |
+            xunnet-desktop/build/*.exe
+            xunnet-desktop/build/*.deb
+            xunnet-desktop/build/*.rpm
+            xunnet-desktop/build/*.tar.gz
+            xunnet-desktop/build/*.tgz
 
       - name: Package Desktop (Linux)
         if: runner.os == 'Linux'
