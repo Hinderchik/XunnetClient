@@ -3,12 +3,15 @@ package dev.xunnet.client.ui.components
 import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +30,7 @@ import dev.xunnet.client.core.domain.parser.LinkParser
 /**
  * Bottom-sheet dialog for importing a proxy profile.
  * - Pastes from clipboard automatically when opened
- * - Lets user paste/edit a link
+ * - Lets user paste/edit a link OR pick a .conf file
  * - Returns the parsed Profile via onImport, or null if cancelled
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,6 +47,7 @@ fun ImportDialog(
     var nameOverride by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var isParsing by remember { mutableStateOf(false) }
+    var lastFileUri by remember { mutableStateOf<String?>(null) }
 
     // Auto-paste from clipboard on first show
     LaunchedEffect(Unit) {
@@ -56,6 +60,22 @@ fun ImportDialog(
                 }
             }
         } catch (_: Exception) { }
+    }
+
+    // File picker for .conf / .wgconf files
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val text = context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+                lastFileUri = uri.toString()
+                linkText = text   // show in the field so user sees what was loaded
+                error = null
+            } catch (e: Exception) {
+                error = "Не удалось прочитать файл: ${e.message}"
+            }
+        }
     }
 
     Dialog(
@@ -100,12 +120,12 @@ fun ImportDialog(
                     )
                 }
 
-                // Link input with paste button
+                // Link / config input
                 OutlinedTextField(
                     value = linkText,
                     onValueChange = { linkText = it; error = null },
-                    label = { Text("Ссылка или конфиг") },
-                    placeholder = { Text("vless://... / vmess://... / ss://... / trojan://...") },
+                    label = { Text("Ссылка или содержимое .conf") },
+                    placeholder = { Text("vless://... / xunnet://... / .conf конфиг WireGuard/AmneziaWG") },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 3,
                     maxLines = 6,
@@ -113,7 +133,7 @@ fun ImportDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
                     supportingText = {
                         if (error != null) Text(error!!, color = MaterialTheme.colorScheme.error)
-                        else Text("Поддерживаются: vless, vmess, trojan, ss, hysteria(1/2), tuic, ssh, naive, wireguard, xunnet, xuncrypt")
+                        else Text("Поддерживаются: vless, vmess, trojan, ss, hysteria(1/2), tuic, ssh, naive, wireguard, amneziawg (1.5/2.0), xunnet, xuncrypt, .conf")
                     }
                 )
 
@@ -141,13 +161,12 @@ fun ImportDialog(
                         Text("Вставить")
                     }
                     OutlinedButton(
-                        onClick = { /* TODO: QR scanner */ },
-                        modifier = Modifier.weight(1f),
-                        enabled = false
+                        onClick = { filePicker.launch(arrayOf("*/*")) },
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                        Icon(Icons.Default.Description, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("QR-код")
+                        Text("Файл .conf")
                     }
                 }
 
@@ -174,7 +193,7 @@ fun ImportDialog(
                         onClick = {
                             isParsing = true
                             error = null
-                            val result = parser.parse(linkText)
+                            val result = parseInput(parser, linkText)
                             result.fold(
                                 onSuccess = { p ->
                                     val finalProfile = if (nameOverride.isNotBlank())
@@ -204,5 +223,20 @@ fun ImportDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Dispatches to the right parser based on input shape:
+ * - starts with "[" → .conf file
+ * - starts with "<" → XML (not supported, error)
+ * - otherwise → URL link
+ */
+private fun parseInput(parser: LinkParser, input: String): Result<dev.xunnet.client.core.domain.model.Profile> {
+    val trimmed = input.trim()
+    return when {
+        trimmed.startsWith("[Interface]") || trimmed.contains("\n[Interface]") -> parser.parseConfig(trimmed)
+        trimmed.startsWith("[") -> parser.parseConfig(trimmed)
+        else -> parser.parse(trimmed)
     }
 }

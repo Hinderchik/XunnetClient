@@ -49,7 +49,13 @@ class XunnetLinkParser : LinkParser {
     }
 
     override fun parseFile(file: File): Result<List<Profile>> = runCatching {
-        val lines = file.readLines().filter { it.isNotBlank() }
+        val content = file.readText()
+        // Detect WireGuard/AmneziaWG .conf format
+        if (content.contains(Regex("^\\s*\\[Interface\\]"))) {
+            val profile = parseConfig(content).getOrThrow()
+            return@runCatching listOf(profile)
+        }
+        val lines = content.lines().filter { it.isNotBlank() }
         val profiles = mutableListOf<Profile>()
         val errors = mutableListOf<String>()
         for (line in lines) {
@@ -63,6 +69,127 @@ class XunnetLinkParser : LinkParser {
             throw IllegalStateException("No valid profiles in file. Errors: ${errors.joinToString("; ")}")
         }
         profiles
+    }
+
+    /**
+     * Parse a WireGuard / AmneziaWG configuration file.
+     *
+     * Standard format:
+     * ```
+     * [Interface]
+     * PrivateKey = <base64>
+     * Address = 10.0.0.2/32
+     * DNS = 1.1.1.1
+     *
+     * [Peer]
+     * PublicKey = <base64>
+     * Endpoint = server.example.com:51820
+     * AllowedIPs = 0.0.0.0/0
+     * PersistentKeepalive = 25
+     * ```
+     *
+     * AmneziaWG extension (AWG 1.5 / 2.0):
+     * ```
+     * Jc = 5
+     * Jmin = 50
+     * Jmax = 1000
+     * S1 = 52
+     * S2 = 87
+     * H1 = 1234567890
+     * H2 = 0987654321
+     * H3 = 1122334455
+     * H4 = 5566778899
+     * ```
+     *
+     * AWG 1.5 uses the same obfuscation fields as 2.0 — only the underlying
+     * kernel module / sing-box integration version differs.
+     */
+    override fun parseConfig(conf: String): Result<Profile> = runCatching {
+        val sections = mutableMapOf<String, MutableMap<String, String>>()
+        var current: MutableMap<String, String>? = null
+
+        conf.lineSequence()
+            .map { it.substringBefore('#').trim() }   // strip comments
+            .filter { it.isNotEmpty() }
+            .forEach { line ->
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    val name = line.substring(1, line.length - 1).trim()
+                    current = mutableMapOf()
+                    sections[name] = current
+                } else {
+                    val eq = line.indexOf('=')
+                    if (eq > 0 && current != null) {
+                        val key = line.substring(0, eq).trim()
+                        val value = line.substring(eq + 1).trim()
+                        current!![key] = value
+                    }
+                }
+            }
+
+        val iface = sections["Interface"]
+            ?: throw IllegalArgumentException("Missing [Interface] section in .conf")
+        val peer = sections["Peer"]
+            ?: throw IllegalArgumentException("Missing [Peer] section in .conf")
+
+        val privateKey = iface["PrivateKey"]
+            ?: throw IllegalArgumentException("Missing PrivateKey in [Interface]")
+        val address = iface["Address"]
+            ?: throw IllegalArgumentException("Missing Address in [Interface]")
+        val dns = iface["DNS"] ?: ""
+
+        val publicKey = peer["PublicKey"]
+            ?: throw IllegalArgumentException("Missing PublicKey in [Peer]")
+        val endpoint = peer["Endpoint"]
+            ?: throw IllegalArgumentException("Missing Endpoint in [Peer]")
+        val allowedIPs = peer["AllowedIPs"] ?: "0.0.0.0/0"
+        val keepalive = peer["PersistentKeepalive"] ?: ""
+
+        val (host, port) = parseEndpoint(endpoint)
+        val params = JSONObject().apply {
+            put("private_key", privateKey)
+            put("publickey", publicKey)
+            put("address", address)
+            if (dns.isNotEmpty()) put("dns", dns)
+            if (allowedIPs.isNotEmpty()) put("allowed_ips", allowedIPs)
+            if (keepalive.isNotEmpty()) put("keepalive", keepalive)
+            // AmneziaWG obfuscation params (both 1.5 and 2.0 use same fields)
+            iface["Jc"]?.let { put("jc", it.toIntOrNull() ?: it) }
+            iface["Jmin"]?.let { put("jmin", it.toIntOrNull() ?: it) }
+            iface["Jmax"]?.let { put("jmax", it.toIntOrNull() ?: it) }
+            iface["S1"]?.let { put("s1", it.toIntOrNull() ?: it) }
+            iface["S2"]?.let { put("s2", it.toIntOrNull() ?: it) }
+            iface["H1"]?.let { put("h1", it) }
+            iface["H2"]?.let { put("h2", it) }
+            iface["H3"]?.let { put("h3", it) }
+            iface["H4"]?.let { put("h4", it) }
+        }
+
+        // Detect protocol: AmneziaWG if any AWG obfuscation params present
+        val isAmnezia = params.has("jc") || params.has("jmin") || params.has("jmax")
+            || params.has("s1") || params.has("s2")
+            || params.has("h1") || params.has("h2") || params.has("h3") || params.has("h4")
+
+        val protocol = when {
+            isAmnezia -> "amneziawg"
+            else -> "wireguard"
+        }
+
+        Profile(
+            id = java.util.UUID.randomUUID().toString(),
+            name = host,
+            protocol = protocol,
+            address = host,
+            port = port,
+            paramsJson = params.toString()
+        )
+    }
+
+    private fun parseEndpoint(endpoint: String): Pair<String, Int> {
+        // Strip optional square brackets around IPv6
+        val cleaned = endpoint.replace("[", "").replace("]", "")
+        val host = cleaned.substringBeforeLast(':')
+        val port = cleaned.substringAfterLast(':').toIntOrNull() ?: 51820
+        return host to port
     }
 
     override fun generate(profile: Profile): String {
