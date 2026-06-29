@@ -56,7 +56,7 @@ int main(int argc, char *argv[]) {
     TrayIcon tray;
     QObject::connect(&tray, &TrayIcon::toggleRequested, &xunnet, [&]() {
         if (xunnet.connected()) xunnet.stopVpn();
-        else if (xunnet.activeProfile().isValid()) xunnet.startVpn(xunnet.activeProfile());
+        else if (!xunnet.activeProfile().isEmpty()) xunnet.startVpn(xunnet.activeProfile());
     });
     QObject::connect(&tray, &TrayIcon::profileImported, &profiles, [&](const QString &link) {
         profiles.addFromLink(link);
