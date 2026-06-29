@@ -43,8 +43,14 @@ TrayIcon::TrayIcon(QObject *parent) : QObject(parent) {
 
     m_trayIcon->setContextMenu(m_menu);
 
-    // Double-click on tray icon → show window
-    connect(m_trayIcon, &QSystemTrayIcon::doubleClicked, this, &TrayIcon::showWindowRequested);
+    // Double-click on tray icon -> show window
+    // Qt 6: doubleClicked signal was removed; use activated(reason) instead
+    connect(m_trayIcon, &QSystemTrayIcon::activated, this,
+            [this](QSystemTrayIcon::ActivationReason reason) {
+                if (reason == QSystemTrayIcon::DoubleClick) {
+                    emit showWindowRequested();
+                }
+            });
 }
 
 void TrayIcon::show() {
