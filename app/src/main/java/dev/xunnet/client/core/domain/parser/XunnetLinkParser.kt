@@ -26,6 +26,7 @@ class XunnetLinkParser : LinkParser {
         val trimmed = link.trim()
         when {
             trimmed.startsWith("xunnet://", ignoreCase = true) -> parseXunnet(trimmed)
+            trimmed.startsWith("chain://", ignoreCase = true) -> parseChain(trimmed)
             trimmed.startsWith("vless://", ignoreCase = true) -> parseVless(trimmed)
             trimmed.startsWith("trojan://", ignoreCase = true) -> parseTrojan(trimmed)
             trimmed.startsWith("ss://", ignoreCase = true) -> parseSs(trimmed)
@@ -368,6 +369,25 @@ class XunnetLinkParser : LinkParser {
             params = params + ("private_key" to privateKey)
         )
     }
+
+    // ---------------------------------------------------------------
+    // chain://profile1|profile2|profile3#name
+    // Returns a list of profiles to chain in order.
+    // ---------------------------------------------------------------
+    fun parseChain(link: String): List<Profile> {
+        val noScheme = link.removePrefixIgnoreCase("chain://")
+        val (beforeFragment, name) = splitFragment(noScheme)
+        val parts = beforeFragment.split('|').filter { it.isNotBlank() }
+        require(parts.isNotEmpty()) { "chain:// must contain at least one profile" }
+        return parts.map { parse(it).getOrThrow() }
+            .also { if (name.isNotEmpty()) Unit /* name applied by caller */ }
+    }
+
+    /**
+     * Generate a xunnet:// link for a single profile (the standard form).
+     * For chain:// use [ChainBuilder.toChainUri].
+     */
+    fun toXunnetUri(profile: Profile): String = generate(profile)
 
     // ---------------------------------------------------------------
     // Helpers
