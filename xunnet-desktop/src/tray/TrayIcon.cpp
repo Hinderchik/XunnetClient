@@ -9,19 +9,11 @@ TrayIcon::TrayIcon(QObject *parent) : QObject(parent) {
     m_trayIcon = new QSystemTrayIcon(this);
     m_menu = new QMenu();
 
-    QAction *showAction = new QAction(tr("Show"), this);
-    connect(showAction, &QAction::triggered, this, &TrayIcon::showWindowRequested);
-    m_menu->addAction(showAction);
-
-    m_menu->addSeparator();
-
-    QAction *connectAction = new QAction(tr("Connect"), this);
-    connect(connectAction, &QAction::triggered, this, &TrayIcon::connectRequested);
-    m_menu->addAction(connectAction);
-
-    QAction *disconnectAction = new QAction(tr("Disconnect"), this);
-    connect(disconnectAction, &QAction::triggered, this, &TrayIcon::disconnectRequested);
-    m_menu->addAction(disconnectAction);
+    // Single dynamic action — Connect/Disconnect
+    m_toggleAction = new QAction(this);
+    m_toggleAction->setText(tr("Connect"));
+    connect(m_toggleAction, &QAction::triggered, this, &TrayIcon::toggleRequested);
+    m_menu->addAction(m_toggleAction);
 
     m_menu->addSeparator();
 
@@ -65,6 +57,9 @@ void TrayIcon::setStatus(bool connected, const QString &profileName) {
                                .arg(connected ? tr("Connected") : tr("Disconnected")));
     QString iconPath = connected ? ":/icons/app-connected.svg" : ":/icons/app.svg";
     m_trayIcon->setIcon(QIcon(iconPath));
+    if (m_toggleAction) {
+        m_toggleAction->setText(connected ? tr("Disconnect") : tr("Connect"));
+    }
 }
 
 QString TrayIcon::pasteFromClipboard() {
@@ -93,8 +88,7 @@ QString TrayIcon::pasteFromClipboard() {
         return QString();
     }
     m_trayIcon->showMessage(tr("Xunnet"),
-                             tr("Imported link from clipboard. Opening add dialog…"),
+                             tr("Imported link from clipboard"),
                              QSystemTrayIcon::Information, 3000);
     return text;
 }
-
