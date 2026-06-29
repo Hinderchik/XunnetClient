@@ -414,35 +414,56 @@ jobs:
           }
 
           # 5) Copy MinGW runtime (libgcc, libstdc++, libwinpthread)
+          # Try explicit paths first, then broad search, then download via choco as last resort
+          $mingwBin = $null
           $mingwTry = @(
             "C:\Qt\Tools\mingw_1310_64\bin",
             "C:\Qt\Tools\mingw_1120_64\bin",
             "D:\a\XunnetClient\Qt\Tools\mingw_1310_64\bin",
-            "D:\a\XunnetClient\Qt\Tools\mingw_1120_64\bin"
+            "D:\a\XunnetClient\Qt\Tools\mingw_1120_64\bin",
+            "D:\a\XunnetClient\Qt\6.5.3\mingw_64\bin",
+            "C:\Qt\6.5.3\mingw_64\bin",
+            "C:\Program Files\Git\mingw64\bin",
+            "C:\msys64\mingw64\bin"
           )
-          $mingwBin = $null
           foreach ($m in $mingwTry) {
-            if (Test-Path -LiteralPath $m) { $mingwBin = $m; break }
+            if (Test-Path -LiteralPath (Join-Path $m "libstdc++-6.dll")) {
+              $mingwBin = $m; break
+            }
           }
           if (-not $mingwBin) {
-            $mingwBin = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt" -Directory -Recurse -ErrorAction SilentlyContinue |
-              Where-Object { $_.Name -match "^mingw_\d+_64$" } |
-              ForEach-Object { Join-Path $_.FullName "bin" } |
-              Where-Object { Test-Path $_ } |
-              Select-Object -First 1
+            Write-Host "Searching for libstdc++-6.dll recursively..."
+            $found = Get-ChildItem -Path "C:\Qt", "D:\Qt", "D:\a\XunnetClient\Qt", "C:\Program Files" -Recurse -Filter "libstdc++-6.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($found) { $mingwBin = Split-Path -Parent $found.FullName }
           }
-          if ($mingwBin -and (Test-Path -LiteralPath $mingwBin)) {
-            Write-Host "MinGW bin: $mingwBin"
-            $mingwRuntime = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll", "libgcc_s_dw2-1.dll")
-            foreach ($dll in $mingwRuntime) {
-              $src = Join-Path $mingwBin $dll
-              if (Test-Path -LiteralPath $src) {
-                Copy-Item -LiteralPath $src -Destination $binAbs -Force
-                Write-Host "  + $dll"
-              }
+          if (-not $mingwBin) {
+            Write-Host "Falling back: installing MinGW via choco..."
+            choco install mingw --no-progress -y 2>&1 | Out-Null
+            $mingwBin = "C:\ProgramData\chocolatey\lib\mingw\tools\install\bin"
+            if (-not (Test-Path -LiteralPath (Join-Path $mingwBin "libstdc++-6.dll"))) {
+              $mingwBin = "C:\tools\mingw64\bin"
             }
-          } else {
-            Write-Host "WARNING: MinGW runtime not found"
+            if (-not (Test-Path -LiteralPath (Join-Path $mingwBin "libstdc++-6.dll"))) {
+              Write-Host "ERROR: cannot locate MinGW runtime. Bundle is broken."
+              exit 1
+            }
+          }
+          Write-Host "MinGW bin: $mingwBin"
+          $mingwRuntime = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll", "libgcc_s_dw2-1.dll")
+          $copiedMingw = 0
+          foreach ($dll in $mingwRuntime) {
+            $src = Join-Path $mingwBin $dll
+            if (Test-Path -LiteralPath $src) {
+              Copy-Item -LiteralPath $src -Destination $binAbs -Force
+              Write-Host "  + $dll"
+              $copiedMingw++
+            } else {
+              Write-Host "  ! $dll missing in $mingwBin"
+            }
+          }
+          if ($copiedMingw -lt 3) {
+            Write-Host "ERROR: only $copiedMingw MinGW DLLs copied, expected >=3"
+            exit 1
           }
 
           Write-Host ""
