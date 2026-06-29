@@ -3,7 +3,6 @@ package dev.xunnet.client
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
@@ -25,7 +24,6 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.xunnet.client.ui.navigation.Screen
 import dev.xunnet.client.ui.screens.DashboardScreen
-import dev.xunnet.client.ui.screens.FederationScreen
 import dev.xunnet.client.ui.screens.ProxiesScreen
 import dev.xunnet.client.ui.screens.SettingsScreen
 import dev.xunnet.client.ui.screens.SubscriptionsScreen
@@ -39,7 +37,6 @@ fun XunnetApp() {
         BottomNavItem(Screen.Dashboard, R.string.nav_dashboard, Icons.Default.Home),
         BottomNavItem(Screen.Proxies, R.string.nav_proxies, Icons.Default.Storage),
         BottomNavItem(Screen.Subscriptions, R.string.nav_subscriptions, Icons.Default.RssFeed),
-        BottomNavItem(Screen.Federation, R.string.nav_federation, Icons.Default.Language),
         BottomNavItem(Screen.Settings, R.string.nav_settings, Icons.Default.Settings)
     )
 
@@ -75,7 +72,6 @@ fun XunnetApp() {
             composable(Screen.Dashboard.route) { DashboardScreen() }
             composable(Screen.Proxies.route) { ProxiesScreen() }
             composable(Screen.Subscriptions.route) { SubscriptionsScreen() }
-            composable(Screen.Federation.route) { FederationScreen() }
             composable(Screen.Settings.route) { SettingsScreen() }
         }
     }

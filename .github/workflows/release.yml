@@ -357,11 +357,13 @@ jobs:
           $qtBin = Join-Path $qtRoot "bin"
           $qtPlugins = Join-Path $qtRoot "plugins"
 
-          # 1) Copy required Qt6 DLLs (Core, Gui, Network, Qml, Widgets + their dependencies)
+          # 1) Copy required Qt6 DLLs (Core, Gui, Network, Qml, Quick, Widgets + dependencies)
           Write-Host "Copying Qt6 DLLs from $qtBin"
           $requiredDlls = @(
-            "Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Qml.dll", "Qt6Widgets.dll",
-            "Qt6QmlModels.dll", "Qt6QmlMeta.dll", "Qt6QmlWorkerScript.dll"
+            "Qt6Core.dll", "Qt6Gui.dll", "Qt6Network.dll", "Qt6Qml.dll", "Qt6Quick.dll",
+            "Qt6Widgets.dll", "Qt6QuickControls2.dll", "Qt6QuickTemplates2.dll",
+            "Qt6QuickControls2Impl.dll", "Qt6QmlModels.dll", "Qt6QmlMeta.dll",
+            "Qt6QmlWorkerScript.dll", "Qt6Svg.dll", "Qt6SvgWidgets.dll"
           )
           foreach ($dll in $requiredDlls) {
             $src = Join-Path $qtBin $dll
@@ -380,24 +382,25 @@ jobs:
           if (Test-Path $platformsSrc) {
             foreach ($dll in (Get-ChildItem $platformsSrc -Filter "*.dll")) {
               Copy-Item $dll.FullName -Destination $platformsDst -Force
-              Write-Host "  Copied platforms/$($dll.Name)"
             }
-          } else {
-            Write-Host "  WARNING: $platformsSrc does not exist"
           }
 
-          # 3) Copy styles plugin (default style fallback)
-          $stylesSrc = Join-Path $qtPlugins "styles"
-          $stylesDst = Join-Path $binDir "styles"
-          if (Test-Path $stylesSrc) {
-            New-Item -ItemType Directory -Path $stylesDst -Force | Out-Null
-            foreach ($dll in (Get-ChildItem $stylesSrc -Filter "*.dll")) {
-              Copy-Item $dll.FullName -Destination $stylesDst -Force
+          # 3) Copy all plugin categories (styles, imageformats, tls, iconengines, sqldrivers, etc.)
+          Write-Host "Copying Qt plugins (styles, imageformats, tls, iconengines)"
+          $pluginCategories = @("styles", "imageformats", "tls", "iconengines", "sqldrivers", "networkinformation", "platformthemes")
+          foreach ($cat in $pluginCategories) {
+            $src = Join-Path $qtPlugins $cat
+            $dst = Join-Path $binDir $cat
+            if (Test-Path $src) {
+              New-Item -ItemType Directory -Path $dst -Force | Out-Null
+              Get-ChildItem -Path $src -Filter "*.dll" | ForEach-Object {
+                Copy-Item $_.FullName -Destination $dst -Force
+              }
+              Write-Host "  Copied $cat/"
             }
-            Write-Host "  Copied styles/"
           }
 
-          # 4) Copy MinGW runtime DLLs
+          # 4) Copy MinGW runtime DLLs (libgcc_s_seh-1.dll, libstdc++-6.dll, libwinpthread-1.dll)
           Write-Host "Copying MinGW runtime DLLs"
           $mingwCandidates = @(
             "C:\Qt\Tools\mingw_1310_64\bin",
@@ -416,21 +419,25 @@ jobs:
           }
           if ($mingwBin -and (Test-Path $mingwBin)) {
             Write-Host "  MinGW bin: $mingwBin"
-            Get-ChildItem -Path $mingwBin -Filter "*.dll" | ForEach-Object {
-              Copy-Item $_.FullName -Destination $binDir -Force
+            # Copy only essential MinGW runtime DLLs
+            $mingwRuntime = @("libgcc_s_seh-1.dll", "libstdc++-6.dll", "libwinpthread-1.dll", "libgcc_s_dw2-1.dll")
+            foreach ($dll in $mingwRuntime) {
+              $src = Join-Path $mingwBin $dll
+              if (Test-Path $src) {
+                Copy-Item $src -Destination $binDir -Force
+              }
             }
             Write-Host "  MinGW runtime copied"
           } else {
             Write-Host "  WARNING: MinGW runtime not found"
           }
 
-          # 5) Copy QML imports if present
+          # 5) Copy QML imports (QtQuick, QtQml, etc.)
           $qmlSrc = Join-Path $qtRoot "qml"
           $qmlDst = Join-Path $binDir "qml"
           if (Test-Path $qmlSrc) {
             New-Item -ItemType Directory -Path $qmlDst -Force | Out-Null
             Write-Host "Copying QML imports from $qmlSrc"
-            # Copy only top-level QML modules (not all subdirs)
             Get-ChildItem -Path $qmlSrc -Directory | ForEach-Object {
               $qmldir = Join-Path $qmlDst $_.Name
               New-Item -ItemType Directory -Path $qmldir -Force | Out-Null
